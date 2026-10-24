@@ -397,6 +397,12 @@ async function cleanActiveDataset() {
       }),
     });
     const body = await response.json().catch(() => ({}));
+    
+    // Handle Gemini not configured error
+    if (!response.ok && (body.code === 'GEMINI_NOT_CONFIGURED' || response.status === 503)) {
+      throw new Error('Gemini API is not configured on this deployment.\n\nTo enable AI-powered cleaning:\n1. Get a Gemini API key from https://aistudio.google.com/\n2. Add it as GEMINI_API_KEY in Vercel environment variables\n3. Redeploy the application\n\nAlternatively, you can manually clean your data and re-upload it.');
+    }
+    
     if (!response.ok) throw new Error(body.error || `Gemini cleaning request failed (${response.status}).`);
     if (body.plan?.status !== 'ready') throw new Error(body.plan?.summary || 'Gemini did not return a safe cleaning plan.');
     const applied = applyCleaningPlan(rawDataset.rows, body.plan);
@@ -423,8 +429,8 @@ async function cleanActiveDataset() {
     window.alert(`✓ Dataset cleaned successfully!\n\nApplied ${applied.counters?.total || 0} cleaning operations.\nYou can now download the cleaned CSV.`);
   } catch (error) {
     state.cleaning = { busy: false, plan: null, changes: null };
-    state.providerNotice = `Gemini cleaning failed: ${error.message} No cleaned file was created.`;
-    window.alert(`✗ Cleaning failed\n\n${error.message}`);
+    state.providerNotice = `Gemini cleaning failed: ${error.message}`;
+    window.alert(`⚠️ Cleaning Not Available\n\n${error.message}`);
   } finally {
     render();
   }
