@@ -5,7 +5,11 @@
     { "src": "web/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/api/ai/clean", "dest": "/api/ai/clean.mjs" },
+    { "src": "/api/ai/interpret", "dest": "/api/ai/interpret.mjs" },
+    { "src": "/api/ai/custom-interpret", "dest": "/api/ai/custom-interpret.mjs" },
+    { "src": "/api/health", "dest": "/api/health.mjs" },
+    { "src": "/api/plugin/ask", "dest": "/api/plugin/ask.mjs" },
     { "src": "/config.js", "dest": "/api/config.mjs" },
     { "src": "/(.*\\.(js|mjs|css|html|json|xml|txt|png|ico|svg))", "dest": "/web/$1" },
     { "src": "/(.*)", "dest": "/web/index.html" }
