@@ -2,16 +2,17 @@
   "version": 2,
   "builds": [
     { "src": "api/**/*.mjs", "use": "@vercel/node" },
-    { "src": "web/**", "use": "@vercel/static" }
+    { "src": "server.mjs", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/api/ai/clean", "dest": "/api/ai/clean.mjs" },
-    { "src": "/api/ai/interpret", "dest": "/api/ai/interpret.mjs" },
-    { "src": "/api/ai/custom-interpret", "dest": "/api/ai/custom-interpret.mjs" },
-    { "src": "/api/health", "dest": "/api/health.mjs" },
-    { "src": "/api/plugin/ask", "dest": "/api/plugin/ask.mjs" },
-    { "src": "/config.js", "dest": "/api/config.mjs" },
-    { "src": "/(.*\\.(js|mjs|css|html|json|xml|txt|png|ico|svg))", "dest": "/web/$1" },
+    { "src": "/api/ai/clean", "dest": "/server.mjs" },
+    { "src": "/api/ai/interpret", "dest": "/server.mjs" },
+    { "src": "/api/ai/custom-interpret", "dest": "/server.mjs" },
+    { "src": "/api/health", "dest": "/server.mjs" },
+    { "src": "/api/plugin/ask", "dest": "/server.mjs" },
+    { "src": "/config.js", "dest": "/server.mjs" },
+    { "src": "/api/(.*)", "dest": "/server.mjs" },
+    { "src": "/(.*\\.(js|mjs|css|html|json|xml|txt|png|ico|svg|webp))", "dest": "/web/$1" },
     { "src": "/(.*)", "dest": "/web/index.html" }
   ]
 }
