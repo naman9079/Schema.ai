@@ -398,9 +398,9 @@ async function cleanActiveDataset() {
     });
     const body = await response.json().catch(() => ({}));
     
-    // Handle Gemini not configured error
-    if (!response.ok && (body.code === 'GEMINI_NOT_CONFIGURED' || response.status === 503)) {
-      throw new Error('Gemini API is not configured on this deployment.\n\nTo enable AI-powered cleaning:\n1. Get a Gemini API key from https://aistudio.google.com/\n2. Add it as GEMINI_API_KEY in Vercel environment variables\n3. Redeploy the application\n\nAlternatively, you can manually clean your data and re-upload it.');
+    // Handle AI not configured error
+    if (!response.ok && (body.code === 'GEMINI_NOT_CONFIGURED' || body.code === 'GROK_NOT_CONFIGURED' || body.code === 'AI_NOT_CONFIGURED' || response.status === 503)) {
+      throw new Error('AI cleaning is not configured on this deployment.\n\nTo enable AI-powered cleaning:\n1. Get an API key:\n   • Grok: https://console.x.ai/\n   • Gemini: https://aistudio.google.com/\n2. Add it in Vercel environment variables:\n   • GROK_API_KEY (recommended) or\n   • GEMINI_API_KEY\n3. Redeploy the application\n\nAlternatively, manually clean your data and re-upload it.');
     }
     
     if (!response.ok) throw new Error(body.error || `Gemini cleaning request failed (${response.status}).`);

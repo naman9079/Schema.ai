@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { interpretQuestion, DEFAULT_GEMINI_MODEL } from './services/gemini.mjs';
 import { interpretCustomQuestion } from './services/custom-provider.mjs';
 import { cleanWithGemini, DEFAULT_CLEANING_MODEL } from './services/gemini-clean.mjs';
+import { interpretWithGrok, cleanWithGrok, DEFAULT_GROK_MODEL } from './services/grok.mjs';
 import { answerPluginQuestion } from './services/plugin.mjs';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)));
@@ -105,19 +106,37 @@ async function handleApi(req, res, url) {
     if (!question || question.length > 2000) return sendJson(res, 400, { error: 'Question must be between 1 and 2000 characters.' });
     if (!schema.length || schema.length > 100) return sendJson(res, 400, { error: 'Authorized schema metadata is required.' });
     try {
-      const interpretation = await interpretQuestion({
-        question,
-        schema,
-        rows: Array.isArray(input.rows) ? input.rows.slice(0, 500) : [],
-        timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
-        now: new Date().toISOString(),
-        apiKey: process.env.GEMINI_API_KEY,
-        model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
-      });
+      let interpretation;
+      // Try Grok first if configured, fallback to Gemini
+      if (process.env.GROK_API_KEY) {
+        interpretation = await interpretWithGrok({
+          question,
+          schema,
+          rows: Array.isArray(input.rows) ? input.rows.slice(0, 500) : [],
+          timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
+          now: new Date().toISOString(),
+          apiKey: process.env.GROK_API_KEY,
+          model: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
+        });
+      } else if (process.env.GEMINI_API_KEY) {
+        interpretation = await interpretQuestion({
+          question,
+          schema,
+          rows: Array.isArray(input.rows) ? input.rows.slice(0, 500) : [],
+          timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
+          now: new Date().toISOString(),
+          apiKey: process.env.GEMINI_API_KEY,
+          model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+        });
+      } else {
+        const error = new Error('No AI provider configured. Set GROK_API_KEY or GEMINI_API_KEY.');
+        error.code = 'AI_NOT_CONFIGURED';
+        throw error;
+      }
       return sendJson(res, 200, interpretation);
     } catch (error) {
-      const status = error.code === 'GEMINI_NOT_CONFIGURED' ? 503 : error.status === 429 ? 429 : 502;
-      return sendJson(res, status, { error: error.message, code: error.code || 'GEMINI_REQUEST_FAILED' });
+      const status = (error.code === 'GEMINI_NOT_CONFIGURED' || error.code === 'GROK_NOT_CONFIGURED' || error.code === 'AI_NOT_CONFIGURED') ? 503 : error.status === 429 ? 429 : 502;
+      return sendJson(res, status, { error: error.message, code: error.code || 'AI_REQUEST_FAILED' });
     }
   }
   if (url.pathname === '/api/ai/custom-interpret' && req.method === 'POST') {
@@ -148,19 +167,37 @@ async function handleApi(req, res, url) {
     const rows = Array.isArray(input.rows) ? input.rows.slice(0, 2000) : [];
     if (!schema.length || !rows.length) return sendJson(res, 400, { error: 'Schema metadata and at least one row are required.' });
     try {
-      const result = await cleanWithGemini({
-        datasetName: typeof input.datasetName === 'string' ? input.datasetName : 'uploaded data',
-        schema,
-        rows,
-        timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
-        now: new Date().toISOString(),
-        apiKey: process.env.GEMINI_API_KEY,
-        model: process.env.GEMINI_MODEL || DEFAULT_CLEANING_MODEL,
-      });
+      let result;
+      // Try Grok first if configured, fallback to Gemini
+      if (process.env.GROK_API_KEY) {
+        result = await cleanWithGrok({
+          datasetName: typeof input.datasetName === 'string' ? input.datasetName : 'uploaded data',
+          schema,
+          rows,
+          timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
+          now: new Date().toISOString(),
+          apiKey: process.env.GROK_API_KEY,
+          model: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
+        });
+      } else if (process.env.GEMINI_API_KEY) {
+        result = await cleanWithGemini({
+          datasetName: typeof input.datasetName === 'string' ? input.datasetName : 'uploaded data',
+          schema,
+          rows,
+          timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
+          now: new Date().toISOString(),
+          apiKey: process.env.GEMINI_API_KEY,
+          model: process.env.GEMINI_MODEL || DEFAULT_CLEANING_MODEL,
+        });
+      } else {
+        const error = new Error('No AI provider configured. Set GROK_API_KEY or GEMINI_API_KEY.');
+        error.code = 'AI_NOT_CONFIGURED';
+        throw error;
+      }
       return sendJson(res, 200, result);
     } catch (error) {
-      const status = error.code === 'GEMINI_NOT_CONFIGURED' ? 503 : error.status === 429 ? 429 : 502;
-      return sendJson(res, status, { error: error.message, code: error.code || 'GEMINI_CLEANING_FAILED' });
+      const status = (error.code === 'GEMINI_NOT_CONFIGURED' || error.code === 'GROK_NOT_CONFIGURED' || error.code === 'AI_NOT_CONFIGURED') ? 503 : error.status === 429 ? 429 : 502;
+      return sendJson(res, status, { error: error.message, code: error.code || 'AI_CLEANING_FAILED' });
     }
   }
   if (url.pathname === '/api/plugin/ask' && req.method === 'POST') {
