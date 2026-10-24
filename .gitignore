@@ -1,0 +1,18 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Local Supabase CLI state
+.supabase/
+
+# Omnirush local state
+.omnirush/swarm.md
+.omnirush/swarms/
+
+# Local agent attachments and runtime state
+.opencode/omnirush/

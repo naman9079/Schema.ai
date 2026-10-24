@@ -1,0 +1,17 @@
+{
+  "timeZone": "Etc/UTC",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets.currentonly",
+    "https://www.googleapis.com/auth/script.container.ui"
+  ],
+  "runtimeVersion": "V8",
+  "addOns": {
+    "common": {
+      "name": "DataPilot",
+      "logoUrl": "https://example.invalid/datapilot-icon.png",
+      "homepageTrigger": { "runFunction": "onOpen" }
+    }
+  }
+}
