@@ -36,7 +36,7 @@ npm run check
 npm run dev
 ```
 
-Open <http://localhost:4173>.
+Open <https://schemaai-delta.vercel.app>.
 
 The app can be explored without a Supabase schema using **Try demo mode**. Live authentication requires the configured Supabase project and its email-auth settings.
 

@@ -1,5 +1,5 @@
 (function () {
-  const apiBase = window.DATAPILOT_API_BASE_URL || window.location.origin;
+  const apiBase = window.DATAPILOT_API_BASE_URL || 'https://schemaai-delta.vercel.app';
   let payload = null;
   let sourceLabel = '';
   const status = document.getElementById('status');

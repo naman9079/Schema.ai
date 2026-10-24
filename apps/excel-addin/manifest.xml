@@ -6,12 +6,12 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Schema.ai" />
   <Description DefaultValue="Clean, import, and ask grounded questions about a selected Excel range or downloaded file." />
-  <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png" />
-  <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png" />
-  <SupportUrl DefaultValue="https://localhost:3000/support" />
-  <AppDomains><AppDomain>https://localhost:3000</AppDomain></AppDomains>
+  <IconUrl DefaultValue="https://schemaai-delta.vercel.app/assets/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://schemaai-delta.vercel.app/assets/icon-80.png" />
+  <SupportUrl DefaultValue="https://schemaai-delta.vercel.app/support" />
+  <AppDomains><AppDomain>https://schemaai-delta.vercel.app</AppDomain></AppDomains>
   <Hosts><Host Name="Workbook" /></Hosts>
   <Requirements><Sets><Set Name="ExcelApi" MinVersion="1.8" /></Sets></Requirements>
-  <FormSettings><Form xsi:type="TaskPaneApp"><SourceLocation DefaultValue="https://localhost:3000/taskpane.html" /></Form></FormSettings>
+  <FormSettings><Form xsi:type="TaskPaneApp"><SourceLocation DefaultValue="https://schemaai-delta.vercel.app/taskpane.html" /></Form></FormSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>

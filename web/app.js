@@ -20,7 +20,12 @@ const PROVIDER_META_KEY = 'schema-ai-provider-meta-v1';
 const PROVIDER_SECRET_KEY = 'schema-ai-provider-secret-v1';
 
 const app = document.querySelector('#app');
-document.querySelector('#boot-message')?.remove();
+const bootMessage = document.querySelector('#boot-message');
+if (!app) {
+  console.error('Schema.ai: #app element not found');
+} else {
+  bootMessage?.remove();
+}
 const state = {
   view: 'chat',
   source: 'demo',
@@ -182,7 +187,7 @@ async function createWorkspace() {
 }
 
 async function askGemini(question) {
-  const response = await fetch(`${config.apiBaseUrl || '/api'}/ai/interpret`, {
+  const response = await fetch(`${config.apiBaseUrl || 'https://schemaai-delta.vercel.app/api'}/ai/interpret`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, schema: state.dataset.schema, rows: state.dataset.rows.slice(0, 500), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }),
@@ -194,7 +199,7 @@ async function askGemini(question) {
 
 async function askCustomProvider(question) {
   if (!hasCustomProvider()) throw new Error('Configure a custom API key in Settings before selecting the custom model.');
-  const response = await fetch(`${config.apiBaseUrl || '/api'}/ai/custom-interpret`, {
+  const response = await fetch(`${config.apiBaseUrl || 'https://schemaai-delta.vercel.app/api'}/ai/custom-interpret`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question, schema: state.dataset.schema, rows: state.dataset.rows.slice(0, 500), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', ...state.customProvider }),
@@ -362,7 +367,7 @@ async function cleanActiveDataset() {
   state.notice = '';
   render();
   try {
-    const response = await fetch(`${config.apiBaseUrl || '/api'}/ai/clean`, {
+    const response = await fetch(`${config.apiBaseUrl || 'https://schemaai-delta.vercel.app/api'}/ai/clean`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -541,6 +546,7 @@ async function importLocalFile(file) {
 }
 
 function renderViewFocused() {
+  if (state.view === 'chat') return renderAskFocused();
   if (state.view === 'history') return renderHistory();
   if (state.view === 'plugins') return renderPlugins();
   if (state.view === 'settings') return renderSettings();
@@ -616,5 +622,15 @@ function bindEvents() {
    document.querySelector('#csv-file')?.addEventListener('change', async (event) => { const file = event.target.files?.[0]; if (!file) return; try { await importLocalFile(file); } catch (error) { state.notice = error.message; } render(); });
 }
 
-render();
-restoreSession().then(() => { if (state.session) loadLiveWorkspace(); render(); });
+try {
+  render();
+  restoreSession().then(() => { if (state.session) loadLiveWorkspace(); render(); }).catch((error) => {
+    console.error('Schema.ai: Session restoration failed', error);
+    render();
+  });
+} catch (error) {
+  console.error('Schema.ai: Initial render failed', error);
+  if (app) {
+    app.innerHTML = `<div style="padding:32px;color:#e8eef8;font-family:system-ui"><h2>Schema.ai failed to load</h2><p>${error.message}</p><p>Check the browser console for details.</p></div>`;
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/**/*.mjs", "use": "@vercel/node" },
+    { "src": "web/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/config.js", "dest": "/api/config.mjs" },
+    { "src": "/(.*\\.(js|mjs|css|html|json|xml|txt|png|ico|svg))", "dest": "/web/$1" },
+    { "src": "/(.*)", "dest": "/web/index.html" }
+  ]
+}

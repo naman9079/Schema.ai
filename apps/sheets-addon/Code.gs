@@ -1,5 +1,5 @@
 function apiBaseUrl_() {
-  return PropertiesService.getScriptProperties().getProperty('SCHEMA_AI_API_BASE') || 'https://YOUR-VERCEL-DOMAIN.vercel.app';
+  return PropertiesService.getScriptProperties().getProperty('SCHEMA_AI_API_BASE') || 'https://schemaai-delta.vercel.app';
 }
 
 function onOpen() {

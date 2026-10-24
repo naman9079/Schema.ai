@@ -11,7 +11,7 @@
   "addOns": {
     "common": {
       "name": "Schema.ai",
-      "logoUrl": "https://YOUR-VERCEL-DOMAIN.vercel.app/icon-80.png",
+      "logoUrl": "https://schemaai-delta.vercel.app/icon-80.png",
       "homepageTrigger": { "runFunction": "onOpen" }
     }
   }

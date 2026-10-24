@@ -191,7 +191,7 @@ async function handle(req, res) {
     const payload = {
       supabaseUrl: process.env.DATAPILOT_SUPABASE_URL || '',
       supabaseAnonKey: process.env.DATAPILOT_SUPABASE_ANON_KEY || '',
-      apiBaseUrl: process.env.DATAPILOT_API_BASE_URL || '/api',
+      apiBaseUrl: 'https://schemaai-delta.vercel.app/api',
       geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
       geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
     };

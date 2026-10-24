@@ -14,7 +14,7 @@ The cleaning endpoint is `POST /api/ai/clean`. The plugin question endpoint is `
 ## Excel
 
 1. Serve the task pane from HTTPS during development or use the deployed Vercel origin.
-2. Replace the example `localhost:3000` URLs in `apps/excel-addin/manifest.xml` with the actual Vercel origin.
+2. The `apps/excel-addin/manifest.xml` URLs are pre-configured to point to `https://schemaai-delta.vercel.app`.
 3. Sideload the manifest in Excel using the Office add-in sideload flow.
 4. Either select a non-empty range or use **Import downloaded file** to choose a cleaned CSV/JSON file from disk.
 5. Preview and explicitly confirm before sending to `POST /api/plugin/ask`.
