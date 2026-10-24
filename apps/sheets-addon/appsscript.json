@@ -4,13 +4,14 @@
   "exceptionLogging": "STACKDRIVER",
   "oauthScopes": [
     "https://www.googleapis.com/auth/spreadsheets.currentonly",
-    "https://www.googleapis.com/auth/script.container.ui"
+    "https://www.googleapis.com/auth/script.container.ui",
+    "https://www.googleapis.com/auth/script.external_request"
   ],
   "runtimeVersion": "V8",
   "addOns": {
     "common": {
-      "name": "DataPilot",
-      "logoUrl": "https://example.invalid/datapilot-icon.png",
+      "name": "Schema.ai",
+      "logoUrl": "https://YOUR-VERCEL-DOMAIN.vercel.app/icon-80.png",
       "homepageTrigger": { "runFunction": "onOpen" }
     }
   }

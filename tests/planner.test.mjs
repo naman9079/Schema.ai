@@ -4,6 +4,7 @@ import {
   buildPlan,
   buildLocalAnswer,
   buildPlanFromInterpretation,
+  applyCleaningPlan,
   calculateConfidence,
   executePlan,
   inferSchema,
@@ -153,6 +154,29 @@ test('local fallback answers general conversation instead of returning a schema 
   assert.equal(plan.status, 'ready');
   assert.equal(plan.kind, 'answer');
   assert.match(plan.answer, /ready to help/i);
+});
+
+test('cleaning plans normalize safe values without mutating the raw rows', () => {
+  const raw = [
+    { name: '  Asha ', score: '310', status: 'N/A' },
+    { name: 'Asha', score: '310', status: 'N/A' },
+    { name: '', score: '', status: '' },
+  ];
+  const result = applyCleaningPlan(raw, {
+    operations: [
+      { type: 'trim_text' },
+      { type: 'normalize_null_tokens' },
+      { type: 'coerce_values' },
+      { type: 'drop_blank_rows' },
+      { type: 'drop_exact_duplicates' },
+    ],
+    nullTokens: ['n/a'],
+  });
+  assert.equal(raw[0].name, '  Asha ');
+  assert.equal(result.rows.length, 1);
+  assert.deepEqual(result.rows[0], { name: 'Asha', score: 310, status: null, __row_number: 2 });
+  assert.equal(result.counters.duplicateRowsRemoved, 1);
+  assert.equal(result.counters.blankRowsRemoved, 1);
 });
 
 test('SQL policy rejects multiple statements, writes, comments, and side effects', () => {

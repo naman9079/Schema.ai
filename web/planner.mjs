@@ -197,6 +197,55 @@ export function profileRows(rows, schema) {
   return { checks, score: calculateConfidence(checks, rows.length).score };
 }
 
+export function applyCleaningPlan(rows, plan) {
+  const operations = new Set(Array.isArray(plan?.operations) ? plan.operations.map((operation) => operation.type) : []);
+  const nullTokens = new Set(Array.isArray(plan?.nullTokens) ? plan.nullTokens.map((token) => String(token).trim().toLowerCase()).filter(Boolean) : []);
+  const counters = { trimmedCells: 0, nullifiedCells: 0, coercedCells: 0, blankRowsRemoved: 0, duplicateRowsRemoved: 0 };
+  const source = Array.isArray(rows) ? rows : [];
+  const cleaned = [];
+  const fingerprints = new Set();
+  for (const sourceRow of source) {
+    const row = {};
+    for (const [key, original] of Object.entries(sourceRow || {})) {
+      if (key === '__row_number') continue;
+      let value = original;
+      if (operations.has('trim_text') && typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed !== value) counters.trimmedCells += 1;
+        value = trimmed;
+      }
+      if (operations.has('normalize_null_tokens') && typeof value === 'string' && nullTokens.has(value.trim().toLowerCase())) {
+        value = null;
+        counters.nullifiedCells += 1;
+      }
+      if (operations.has('empty_to_null') && (value === '' || (typeof value === 'string' && !value.trim()))) {
+        value = null;
+        counters.nullifiedCells += 1;
+      }
+      if (operations.has('coerce_values')) {
+        const coerced = coerceValue(typeof value === 'string' ? value.replaceAll(',', '') : value);
+        if (coerced !== value) counters.coercedCells += 1;
+        value = coerced;
+      }
+      row[key] = value;
+    }
+    const values = Object.values(row);
+    const isBlank = values.length === 0 || values.every((value) => value === null || value === undefined || String(value).trim() === '');
+    if (operations.has('drop_blank_rows') && isBlank) {
+      counters.blankRowsRemoved += 1;
+      continue;
+    }
+    const fingerprint = JSON.stringify(row);
+    if (operations.has('drop_exact_duplicates') && fingerprints.has(fingerprint)) {
+      counters.duplicateRowsRemoved += 1;
+      continue;
+    }
+    fingerprints.add(fingerprint);
+    cleaned.push({ ...row, __row_number: cleaned.length + 2 });
+  }
+  return { rows: cleaned, counters };
+}
+
 export function resolveRelativeYear(question, now = new Date()) {
   const text = question.toLowerCase();
   const explicit = [...text.matchAll(/\b(19|20)\d{2}\b/g)].map((match) => Number(match[0]));

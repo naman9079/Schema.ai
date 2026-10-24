@@ -2,6 +2,7 @@ import {
   buildPlan,
   buildLocalAnswer,
   buildPlanFromInterpretation,
+  applyCleaningPlan,
   calculateConfidence,
   coerceValue,
   executePlan,
@@ -24,6 +25,7 @@ const state = {
   view: 'chat',
   source: 'demo',
   dataset: null,
+  rawDataset: null,
   datasets: [],
   result: null,
   history: loadJson(STORAGE_KEY, { history: [], imported: [] }),
@@ -39,6 +41,8 @@ const state = {
   sqlFeedback: '',
   chatModel: 'auto',
   uploadedFile: null,
+  cleanedArtifact: null,
+  cleaning: { busy: false, plan: null, changes: null },
   customProvider: loadCustomProvider(),
   live: { organizations: [], datasets: [], loading: false, error: '' },
 };
@@ -104,6 +108,7 @@ function makeDataset(name, rows, source = 'Synthetic demo data') {
 
 state.datasets = [demoDataset('Active data'), demoDataset('Sales & revenue'), demoDataset('Inventory')];
 state.dataset = state.datasets[0];
+state.rawDataset = state.dataset;
 for (const item of state.history.imported || []) state.datasets.push(item);
 
 async function supabaseRequest(path, options = {}) {
@@ -349,6 +354,73 @@ async function handleAsk(form) {
   } finally { state.busy = false; render(); }
 }
 
+async function cleanActiveDataset() {
+  if (state.cleaning.busy || !state.dataset?.rows?.length) return;
+  const rawDataset = state.rawDataset || state.dataset;
+  state.cleaning = { busy: true, plan: null, changes: null };
+  state.providerNotice = '';
+  state.notice = '';
+  render();
+  try {
+    const response = await fetch(`${config.apiBaseUrl || '/api'}/ai/clean`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        datasetName: rawDataset.name,
+        schema: rawDataset.schema,
+        rows: rawDataset.rows.slice(0, 2000),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Gemini cleaning request failed (${response.status}).`);
+    if (body.plan?.status !== 'ready') throw new Error(body.plan?.summary || 'Gemini did not return a safe cleaning plan.');
+    const applied = applyCleaningPlan(rawDataset.rows, body.plan);
+    const cleanedName = `${rawDataset.name} · cleaned`;
+    const cleanedDataset = makeDataset(cleanedName, applied.rows, 'Gemini Flash 3.8 cleaned file');
+    state.datasets.push(cleanedDataset);
+    state.history.imported = [...(state.history.imported || []), cleanedDataset].slice(-10);
+    state.dataset = cleanedDataset;
+    state.rawDataset = rawDataset;
+    state.cleanedArtifact = {
+      fileName: `${rawDataset.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'dataset'}-cleaned.csv`,
+      sourceName: rawDataset.name,
+      plan: body.plan,
+      changes: applied.counters,
+      provider: body.provider,
+      model: body.model,
+      generatedAt: new Date().toISOString(),
+    };
+    state.cleaning = { busy: false, plan: body.plan, changes: applied.counters };
+    state.fileNotice = `Cleaned ${rawDataset.name} with ${body.model || 'Gemini 3.8 Flash'}. The original file remains unchanged; download the cleaned CSV for plugin import.`;
+    persist();
+  } catch (error) {
+    state.cleaning = { busy: false, plan: null, changes: null };
+    state.providerNotice = `Gemini cleaning failed: ${error.message} No cleaned file was created.`;
+  } finally {
+    render();
+  }
+}
+
+function downloadCleanedDataset() {
+  const isCleaned = Boolean(state.cleanedArtifact || state.dataset?.source === 'Gemini Flash 3.8 cleaned file');
+  if (!isCleaned || !state.dataset?.rows?.length) {
+    state.notice = 'Clean the active dataset with Gemini before downloading a cleaned CSV.';
+    render();
+    return;
+  }
+  const fileName = state.cleanedArtifact?.fileName || `${state.dataset.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'dataset'}-cleaned.csv`;
+  const blob = new Blob([toCsv(state.dataset.rows)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  state.fileNotice = `Downloaded ${fileName}. You can import this file later from the Excel or Google Sheets plugin.`;
+  render();
+}
+
 function downloadResult() {
   if (!state.result?.rows?.length) return;
   const blob = new Blob([toCsv(state.result.rows)], { type: 'text/csv;charset=utf-8' });
@@ -457,6 +529,9 @@ async function importLocalFile(file) {
   state.datasets.push(dataset);
   state.history.imported = [...(state.history.imported || []), dataset].slice(-10);
   state.dataset = dataset;
+  state.rawDataset = dataset;
+  state.cleanedArtifact = null;
+  state.cleaning = { busy: false, plan: null, changes: null };
   state.source = 'demo';
   state.uploadedFile = file.name;
   state.view = 'chat';
@@ -482,7 +557,9 @@ function renderDashboardFocusedLegacy() {
 
 function renderAskRail() {
   const queryHistory = state.history.history?.slice(0, 4) || [];
-  return `<div class="analysis-rail"><div class="rail-head"><div><div class="inspector-label">ANALYSIS DOCK</div><h2>Results & evidence</h2></div><div class="rail-actions"><button class="icon-button" data-action="export" ${state.result?.rows?.length ? '' : 'disabled'} title="Export result">↓</button><button class="icon-button" data-action="clear-result" ${state.result ? '' : 'disabled'} title="Clear result">×</button></div></div>${renderQualityRail()}<section class="rail-section result-rail-section"><div class="rail-section-head"><div><div class="inspector-label">QUERY RESULT</div><h3>${state.result ? 'Latest analysis' : 'Waiting for a question'}</h3></div><button class="text-button" data-view="sql">Open SQL editor →</button></div>${state.fileNotice ? `<div class="file-notice"><div><strong>Local file loaded</strong><span>${esc(state.fileNotice)}</span></div><button class="icon-button" data-action="clear-file-notice" title="Dismiss file status">×</button></div>` : ''}${state.providerNotice ? `<div class="provider-notice"><strong>Provider status</strong><span>${esc(state.providerNotice)}</span></div>` : ''}${state.result ? renderResult(state.result) : '<div class="rail-empty">Run a question in Chat to populate the result, SQL, validation, and evidence panels.</div>'}</section><section class="rail-section"><div class="rail-section-head"><div><div class="inspector-label">RECENT CHATS</div><h3>History</h3></div><button class="text-button" data-view="history">View all →</button></div>${queryHistory.length ? queryHistory.map((item) => `<div class="recent-item"><span class="recent-dot"></span><div><strong>${esc(item.question)}</strong><small>${esc(item.status)} · ${new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('') : '<div class="rail-empty compact-empty">No chats yet.</div>'}</section></div>`;
+  const isCleaned = Boolean(state.cleanedArtifact || state.dataset?.source === 'Gemini Flash 3.8 cleaned file');
+  const changes = state.cleaning.changes;
+  return `<div class="analysis-rail"><div class="rail-head"><div><div class="inspector-label">ANALYSIS DOCK</div><h2>Results & evidence</h2></div><div class="rail-actions"><button class="icon-button" data-action="export" ${state.result?.rows?.length ? '' : 'disabled'} title="Export result">↓</button><button class="icon-button" data-action="clear-result" ${state.result ? '' : 'disabled'} title="Clear result">×</button></div></div><section class="rail-section dataset-workflow-section"><div class="rail-section-head"><div><div class="inspector-label">FILE WORKFLOW</div><h3>Clean and reuse</h3></div><span class="status-pill ${isCleaned ? '' : 'warning'}">${isCleaned ? 'Cleaned file' : 'Raw file'}</span></div><p class="rail-empty workflow-copy">Clean the active raw file with Gemini Flash 3.8, download the reusable CSV, and import that file later from an Excel or Google Sheets plugin.</p><div class="workflow-actions"><button class="button primary" data-action="clean-dataset" ${state.cleaning.busy || !state.dataset?.rows?.length ? 'disabled' : ''}>${state.cleaning.busy ? '<span class="spinner"></span> Cleaning…' : 'Clean with Gemini'}</button><button class="button secondary" data-action="download-cleaned" ${isCleaned ? '' : 'disabled'}>↓ Download cleaned CSV</button></div>${changes ? `<div class="workflow-changes">${changes.trimmedCells || 0} trimmed · ${changes.nullifiedCells || 0} nullified · ${changes.coercedCells || 0} coerced · ${changes.blankRowsRemoved || 0} blank rows removed · ${changes.duplicateRowsRemoved || 0} duplicates removed</div>` : ''}</section>${renderQualityRail()}<section class="rail-section result-rail-section"><div class="rail-section-head"><div><div class="inspector-label">QUERY RESULT</div><h3>${state.result ? 'Latest analysis' : 'Waiting for a question'}</h3></div><button class="text-button" data-view="sql">Open SQL editor →</button></div>${state.fileNotice ? `<div class="file-notice"><div><strong>Local file loaded</strong><span>${esc(state.fileNotice)}</span></div><button class="icon-button" data-action="clear-file-notice" title="Dismiss file status">×</button></div>` : ''}${state.providerNotice ? `<div class="provider-notice"><strong>Provider status</strong><span>${esc(state.providerNotice)}</span></div>` : ''}${state.result ? renderResult(state.result) : '<div class="rail-empty">Run a question in Chat to populate the result, SQL, validation, and evidence panels.</div>'}</section><section class="rail-section"><div class="rail-section-head"><div><div class="inspector-label">RECENT CHATS</div><h3>History</h3></div><button class="text-button" data-view="history">View all →</button></div>${queryHistory.length ? queryHistory.map((item) => `<div class="recent-item"><span class="recent-dot"></span><div><strong>${esc(item.question)}</strong><small>${esc(item.status)} · ${new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></div></div>`).join('') : '<div class="rail-empty compact-empty">No chats yet.</div>'}</section></div>`;
 }
 
 function renderSessionInspector() {
@@ -505,9 +582,11 @@ function bindEvents() {
     if (action === 'demo') { state.source = 'demo'; state.dataset = state.datasets[0]; state.view = 'chat'; state.notice = 'Local chat mode enabled.'; render(); }
     if (action === 'signout') await signOut();
      if (action === 'clear-notice') { state.notice = ''; render(); }
-     if (action === 'clear-file-notice') { state.fileNotice = ''; render(); }
-     if (action === 'clear-result') { state.result = null; render(); }
-     if (action === 'export') downloadResult();
+      if (action === 'clear-file-notice') { state.fileNotice = ''; render(); }
+      if (action === 'clear-result') { state.result = null; render(); }
+      if (action === 'export') downloadResult();
+      if (action === 'clean-dataset') await cleanActiveDataset();
+      if (action === 'download-cleaned') downloadCleanedDataset();
      if (action === 'validate-sql') validateEditorSql();
      if (action === 'run-sql-editor') runEditorSql();
      if (action === 'use-last-sql') { state.sqlDraft = state.result?.sql || state.sqlDraft || ''; state.sqlFeedback = state.sqlDraft ? 'Loaded the latest generated SQL into the editor.' : 'Run an Ask Data question first to create a SQL trace.'; render(); }
@@ -521,7 +600,7 @@ function bindEvents() {
      if (action === 'plugin-help') { state.notice = `${element.dataset.plugin} setup details are available in the repository plugin files and docs.`; render(); }
   }));
   document.querySelectorAll('[data-view]').forEach((element) => element.addEventListener('click', async () => { state.view = element.dataset.view; render(); if (state.view === 'datasets' && state.source === 'live') await loadLiveWorkspace(); }));
-  document.querySelectorAll('[data-dataset-id]').forEach((element) => element.addEventListener('click', () => { state.dataset = state.datasets.find((item) => item.id === element.dataset.datasetId) || state.dataset; state.source = state.dataset.source === 'Synthetic demo data' || state.dataset.source === 'Imported CSV' ? 'demo' : state.source; state.view = 'ask'; state.notice = `${state.dataset.name} selected.`; render(); }));
+   document.querySelectorAll('[data-dataset-id]').forEach((element) => element.addEventListener('click', () => { state.dataset = state.datasets.find((item) => item.id === element.dataset.datasetId) || state.dataset; state.rawDataset = state.dataset.source === 'Gemini Flash 3.8 cleaned file' ? (state.rawDataset || state.dataset) : state.dataset; state.cleanedArtifact = state.dataset.source === 'Gemini Flash 3.8 cleaned file' ? state.cleanedArtifact : null; state.source = state.dataset.source === 'Synthetic demo data' || state.dataset.source === 'Imported CSV' ? 'demo' : state.source; state.view = 'chat'; state.notice = `${state.dataset.name} selected.`; render(); }));
    document.querySelectorAll('[data-history-id]').forEach((element) => element.addEventListener('click', () => { const item = state.history.history.find((entry) => entry.id === element.dataset.historyId); if (item) { state.dataset = state.datasets.find((dataset) => dataset.name === item.datasetName) || state.dataset; state.result = item.result; state.view = 'chat'; render(); } }));
   document.querySelectorAll('[data-result-tab]').forEach((element) => element.addEventListener('click', () => { if (state.result) { state.result.tab = element.dataset.resultTab; render(); } }));
    document.querySelectorAll('[data-suggestion]').forEach((element) => element.addEventListener('click', () => { const input = document.querySelector('#question'); if (input) { input.value = element.dataset.suggestion; input.focus(); } }));

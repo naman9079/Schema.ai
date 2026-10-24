@@ -4,6 +4,8 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { interpretQuestion, DEFAULT_GEMINI_MODEL } from './services/gemini.mjs';
 import { interpretCustomQuestion } from './services/custom-provider.mjs';
+import { cleanWithGemini, DEFAULT_CLEANING_MODEL } from './services/gemini-clean.mjs';
+import { answerPluginQuestion } from './services/plugin.mjs';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const port = Number(process.env.PORT || 4173);
@@ -73,7 +75,26 @@ function sendJson(res, status, payload) {
   return send(res, status, JSON.stringify(payload), { 'Content-Type': 'application/json; charset=utf-8' });
 }
 
+function sendPluginJson(res, status, payload) {
+  return send(res, status, JSON.stringify(payload), {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  });
+}
+
+function sendPluginNoContent(res) {
+  res.writeHead(204, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  });
+  res.end();
+}
+
 async function handleApi(req, res, url) {
+  if (url.pathname === '/api/plugin/ask' && req.method === 'OPTIONS') return sendPluginNoContent(res);
   if (url.pathname === '/api/health' && req.method === 'GET') {
     return sendJson(res, 200, { status: 'ok', geminiConfigured: Boolean(process.env.GEMINI_API_KEY), geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL });
   }
@@ -119,6 +140,43 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, interpretation);
     } catch (error) {
       return sendJson(res, 502, { error: error.message, code: 'CUSTOM_PROVIDER_FAILED' });
+    }
+  }
+  if (url.pathname === '/api/ai/clean' && req.method === 'POST') {
+    const input = await readJson(req, 8 * 1024 * 1024);
+    const schema = Array.isArray(input.schema) ? input.schema : [];
+    const rows = Array.isArray(input.rows) ? input.rows.slice(0, 2000) : [];
+    if (!schema.length || !rows.length) return sendJson(res, 400, { error: 'Schema metadata and at least one row are required.' });
+    try {
+      const result = await cleanWithGemini({
+        datasetName: typeof input.datasetName === 'string' ? input.datasetName : 'uploaded data',
+        schema,
+        rows,
+        timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
+        now: new Date().toISOString(),
+        apiKey: process.env.GEMINI_API_KEY,
+        model: process.env.GEMINI_MODEL || DEFAULT_CLEANING_MODEL,
+      });
+      return sendJson(res, 200, result);
+    } catch (error) {
+      const status = error.code === 'GEMINI_NOT_CONFIGURED' ? 503 : error.status === 429 ? 429 : 502;
+      return sendJson(res, status, { error: error.message, code: error.code || 'GEMINI_CLEANING_FAILED' });
+    }
+  }
+  if (url.pathname === '/api/plugin/ask' && req.method === 'POST') {
+    const input = await readJson(req, 8 * 1024 * 1024);
+    try {
+      const result = await answerPluginQuestion({
+        question: input.question,
+        payload: input.payload,
+        apiKey: process.env.GEMINI_API_KEY,
+        model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+        timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
+        now: new Date().toISOString(),
+      });
+      return sendPluginJson(res, 200, result);
+    } catch (error) {
+      return sendPluginJson(res, 400, { error: error.message, code: 'PLUGIN_REQUEST_FAILED' });
     }
   }
   return sendJson(res, 404, { error: 'API route not found.' });
