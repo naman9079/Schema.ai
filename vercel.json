@@ -2,11 +2,15 @@
   "version": 2,
   "builds": [
     { "src": "server.mjs", "use": "@vercel/node" },
-    { "src": "web/**", "use": "@vercel/static" }
+    { "src": "web/**", "use": "@vercel/static" },
+    { "src": "apps/**", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/server.mjs" },
     { "src": "/config.js", "dest": "/server.mjs" },
+    { "src": "/taskpane.html", "dest": "/apps/excel-addin/taskpane.html" },
+    { "src": "/taskpane.js", "dest": "/apps/excel-addin/taskpane.js" },
+    { "src": "/apps/(.*)", "dest": "/apps/$1" },
     { "src": "/(.*\\.(js|mjs|css|html|json|xml|txt|png|ico|svg|webp))", "dest": "/web/$1" },
     { "src": "/(.*)", "dest": "/web/index.html" }
   ]
