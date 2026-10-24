@@ -283,7 +283,7 @@ function renderTable(rows) {
 }
 
 function renderDatasets() {
-  return `<div class="page-head"><div><div class="eyebrow">Sources</div><h2>Datasets</h2><p class="muted">Profile a local file in demo mode or prepare the live Supabase workspace after migration.</p></div><div class="page-actions"><button class="button primary" data-action="seed-demo">Use school demo</button><button class="button secondary" data-action="refresh-live">Refresh live</button></div></div><div class="panel-grid"><section><div class="panel"><h3>Import CSV</h3><p class="panel-subtitle">This local path preserves values, infers types, and records quality warnings. XLSX and server-side atomic ingestion are part of the next backend seam.</p><div class="file-input"><input type="file" id="csv-file" accept=".csv,text/csv" /></div>${state.notice && state.notice.startsWith('Imported') ? `<div class="notice success">${esc(state.notice)}</div>` : ''}</div><div class="panel" style="margin-top:17px"><h3>Available demo datasets</h3><div class="dataset-list">${state.datasets.map((dataset) => `<div class="dataset-card"><div><strong>${esc(dataset.name)}</strong><small>${esc(dataset.source)} · ${dataset.rows.length} rows · ${dataset.schema.length} columns</small></div><button class="button secondary" data-dataset-id="${esc(dataset.id)}">Open</button></div>`).join('')}</div></div></section><aside><div class="panel"><h3>Live workspace</h3><p class="panel-subtitle">${state.session ? 'Authenticated with Supabase. The migration must be applied before live tables are available.' : 'Sign in first to access live workspace metadata.'}</p>${state.live.loading ? '<p class="muted"><span class="spinner"></span> Loading live metadata…</p>' : state.live.error ? `<div class="form-error">${esc(state.live.error)}</div>` : `<p class="muted">${state.live.organizations.length} workspace(s) · ${state.live.datasets.length} dataset(s) returned.</p>`}<div class="page-actions"><button class="button primary" data-action="create-workspace" ${state.session ? '' : 'disabled'}>Create workspace</button><button class="button secondary" data-action="refresh-live" ${state.session ? '' : 'disabled'}>Refresh</button></div></div></aside></div>`;
+  return `<div class="page-head"><div><div class="eyebrow">Sources</div><h2>Datasets</h2><p class="muted">Profile a local file in demo mode or prepare the live Supabase workspace after migration.</p></div><div class="page-actions"><button class="button primary" data-action="seed-demo">Use school demo</button><button class="button secondary" data-action="download-dataset">↓ Download active dataset</button><button class="button secondary" data-action="refresh-live">Refresh live</button></div></div><div class="panel-grid"><section><div class="panel"><h3>Import CSV</h3><p class="panel-subtitle">This local path preserves values, infers types, and records quality warnings. XLSX and server-side atomic ingestion are part of the next backend seam.</p><div class="file-input"><input type="file" id="csv-file" accept=".csv,text/csv" /></div>${state.notice && state.notice.startsWith('Imported') ? `<div class="notice success">${esc(state.notice)}</div>` : ''}</div><div class="panel" style="margin-top:17px"><h3>Available demo datasets</h3><div class="dataset-list">${state.datasets.map((dataset) => `<div class="dataset-card"><div><strong>${esc(dataset.name)}</strong><small>${esc(dataset.source)} · ${dataset.rows.length} rows · ${dataset.schema.length} columns</small></div><button class="button secondary" data-dataset-id="${esc(dataset.id)}">Open</button></div>`).join('')}</div></div></section><aside><div class="panel"><h3>Live workspace</h3><p class="panel-subtitle">${state.session ? 'Authenticated with Supabase. The migration must be applied before live tables are available.' : 'Sign in first to access live workspace metadata.'}</p>${state.live.loading ? '<p class="muted"><span class="spinner"></span> Loading live metadata…</p>' : state.live.error ? `<div class="form-error">${esc(state.live.error)}</div>` : `<p class="muted">${state.live.organizations.length} workspace(s) · ${state.live.datasets.length} dataset(s) returned.</p>`}<div class="page-actions"><button class="button primary" data-action="create-workspace" ${state.session ? '' : 'disabled'}>Create workspace</button><button class="button secondary" data-action="refresh-live" ${state.session ? '' : 'disabled'}>Refresh</button></div></div></aside></div>`;
 }
 
 function renderHistory() {
@@ -361,11 +361,30 @@ async function handleAsk(form) {
 
 async function cleanActiveDataset() {
   if (state.cleaning.busy || !state.dataset?.rows?.length) return;
+  
+  // Check if dataset is already cleaned
+  const isAlreadyCleaned = state.dataset?.source === 'Gemini Flash 3.8 cleaned file' || 
+                           Boolean(state.cleanedArtifact && state.dataset?.name?.includes('cleaned'));
+  
+  if (isAlreadyCleaned) {
+    window.alert('✓ This dataset is already cleaned!\n\nThe current dataset has been processed by Gemini and is ready to use. You can download it using the "Download cleaned CSV" button.');
+    return;
+  }
+  
   const rawDataset = state.rawDataset || state.dataset;
+  
+  // Check quality score - if high, ask for confirmation
+  const qualityScore = rawDataset.quality?.score || 0;
+  if (qualityScore >= 85) {
+    const confirmed = window.confirm(`This dataset has a quality score of ${qualityScore}% which is quite good.\n\nDo you still want to clean it with Gemini?`);
+    if (!confirmed) return;
+  }
+  
   state.cleaning = { busy: true, plan: null, changes: null };
   state.providerNotice = '';
   state.notice = '';
   render();
+  
   try {
     const response = await fetch(`${config.apiBaseUrl || 'https://schemaai-delta.vercel.app/api'}/ai/clean`, {
       method: 'POST',
@@ -397,11 +416,15 @@ async function cleanActiveDataset() {
       generatedAt: new Date().toISOString(),
     };
     state.cleaning = { busy: false, plan: body.plan, changes: applied.counters };
-    state.fileNotice = `Cleaned ${rawDataset.name} with ${body.model || 'Gemini 3.8 Flash'}. The original file remains unchanged; download the cleaned CSV for plugin import.`;
+    state.fileNotice = `✓ Successfully cleaned ${rawDataset.name} with ${body.model || 'Gemini 3.8 Flash'}. The original file remains unchanged; download the cleaned CSV for plugin import.`;
     persist();
+    
+    // Show success notification
+    window.alert(`✓ Dataset cleaned successfully!\n\nApplied ${applied.counters?.total || 0} cleaning operations.\nYou can now download the cleaned CSV.`);
   } catch (error) {
     state.cleaning = { busy: false, plan: null, changes: null };
     state.providerNotice = `Gemini cleaning failed: ${error.message} No cleaned file was created.`;
+    window.alert(`✗ Cleaning failed\n\n${error.message}`);
   } finally {
     render();
   }
@@ -410,26 +433,102 @@ async function cleanActiveDataset() {
 function downloadCleanedDataset() {
   const isCleaned = Boolean(state.cleanedArtifact || state.dataset?.source === 'Gemini Flash 3.8 cleaned file');
   if (!isCleaned || !state.dataset?.rows?.length) {
+    window.alert('⚠ No cleaned dataset available\n\nPlease clean the active dataset with Gemini before downloading a cleaned CSV.');
     state.notice = 'Clean the active dataset with Gemini before downloading a cleaned CSV.';
     render();
     return;
   }
-  const fileName = state.cleanedArtifact?.fileName || `${state.dataset.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'dataset'}-cleaned.csv`;
-  const blob = new Blob([toCsv(state.dataset.rows)], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
-  state.fileNotice = `Downloaded ${fileName}. You can import this file later from the Excel or Google Sheets plugin.`;
-  render();
+  
+  try {
+    const fileName = state.cleanedArtifact?.fileName || `${state.dataset.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'dataset'}-cleaned.csv`;
+    const csvContent = toCsv(state.dataset.rows);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    
+    state.fileNotice = `✓ Downloaded ${fileName}. You can import this file in Excel or Google Sheets plugins.`;
+    state.notice = `Successfully downloaded ${state.dataset.rows.length} rows as ${fileName}`;
+    render();
+    
+    // Show success notification
+    setTimeout(() => {
+      window.alert(`✓ Download successful!\n\nFile: ${fileName}\nRows: ${state.dataset.rows.length}\nColumns: ${state.dataset.schema.length}\n\nYou can now import this cleaned CSV in Excel or Google Sheets.`);
+    }, 100);
+  } catch (error) {
+    window.alert(`✗ Download failed\n\n${error.message}`);
+    state.notice = `Download failed: ${error.message}`;
+    render();
+  }
+}
+
+function downloadCurrentDataset() {
+  if (!state.dataset?.rows?.length) {
+    window.alert('⚠ No dataset available\n\nPlease load or import a dataset first.');
+    return;
+  }
+  
+  try {
+    const fileName = `${state.dataset.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'dataset'}.csv`;
+    const csvContent = toCsv(state.dataset.rows);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    
+    state.notice = `Successfully downloaded ${state.dataset.rows.length} rows as ${fileName}`;
+    render();
+    
+    // Show success notification
+    setTimeout(() => {
+      window.alert(`✓ Download successful!\n\nDataset: ${state.dataset.name}\nFile: ${fileName}\nRows: ${state.dataset.rows.length}\nColumns: ${state.dataset.schema.length}`);
+    }, 100);
+  } catch (error) {
+    window.alert(`✗ Download failed\n\n${error.message}`);
+    state.notice = `Download failed: ${error.message}`;
+    render();
+  }
 }
 
 function downloadResult() {
-  if (!state.result?.rows?.length) return;
-  const blob = new Blob([toCsv(state.result.rows)], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'datapilot-result.csv'; anchor.click(); URL.revokeObjectURL(url);
+  if (!state.result?.rows?.length) {
+    window.alert('⚠ No results to download\n\nPlease run an analysis first to generate results.');
+    return;
+  }
+  
+  try {
+    const fileName = `schema-ai-result-${new Date().toISOString().slice(0, 10)}.csv`;
+    const csvContent = toCsv(state.result.rows);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    
+    state.notice = `Successfully downloaded ${state.result.rows.length} result rows as ${fileName}`;
+    render();
+    
+    // Show success notification
+    setTimeout(() => {
+      window.alert(`✓ Results downloaded!\n\nFile: ${fileName}\nRows: ${state.result.rows.length}`);
+    }, 100);
+  } catch (error) {
+    window.alert(`✗ Download failed\n\n${error.message}`);
+  }
 }
 
 function renderAskFocusedLegacy() {
@@ -593,6 +692,7 @@ function bindEvents() {
       if (action === 'export') downloadResult();
       if (action === 'clean-dataset') await cleanActiveDataset();
       if (action === 'download-cleaned') downloadCleanedDataset();
+      if (action === 'download-dataset') downloadCurrentDataset();
      if (action === 'validate-sql') validateEditorSql();
      if (action === 'run-sql-editor') runEditorSql();
      if (action === 'use-last-sql') { state.sqlDraft = state.result?.sql || state.sqlDraft || ''; state.sqlFeedback = state.sqlDraft ? 'Loaded the latest generated SQL into the editor.' : 'Run an Ask Data question first to create a SQL trace.'; render(); }
