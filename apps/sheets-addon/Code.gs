@@ -93,73 +93,32 @@ function buildFormulaFromResult(result, payload) {
 }
 
 function askSchemaAiWithFormula(question, payload) {
-  // Detect if user wants to write formula to a cell
-  const formulaRequest = detectFormulaRequest(question);
-  const cleanQuestion = formulaRequest.cleanQuestion || question;
-  
-  Logger.log('=== FORMULA REQUEST DEBUG ===');
-  Logger.log('Original question: ' + question);
-  Logger.log('Clean question: ' + cleanQuestion);
-  Logger.log('Has formula request: ' + formulaRequest.hasFormula);
-  Logger.log('Target cell: ' + formulaRequest.targetCell);
-  
   // Call the AI API
   try {
     const response = UrlFetchApp.fetch(apiBaseUrl_() + '/api/plugin/ask', {
       method: 'post',
       contentType: 'application/json',
       muteHttpExceptions: true,
-      payload: JSON.stringify({ source: 'sheets_selected_range_or_file', question: cleanQuestion, payload: payload }),
+      payload: JSON.stringify({ source: 'sheets_selected_range_or_file', question: question, payload: payload }),
     });
     
-    Logger.log('Response code: ' + response.getResponseCode());
-    
     const result = JSON.parse(response.getContentText() || '{}');
-    Logger.log('Result status: ' + result.status);
-    Logger.log('Result kind: ' + result.kind);
-    Logger.log('Result measure: ' + result.measure);
-    
     if (response.getResponseCode() >= 400) {
       throw new Error(result.error || 'Schema.ai request failed (' + response.getResponseCode() + ')');
     }
     
-    // Try to build a formula
+    // Always try to build a formula for calculations
     const formula = buildFormulaFromResult(result, payload);
-    Logger.log('Built formula: ' + formula);
-    
     if (formula) {
       result.formula = formula;
+      Logger.log('Formula generated: ' + formula);
     }
     
-    // If user specified a target cell and we have a formula, write it
-    if (formulaRequest.hasFormula && formula && formulaRequest.targetCell) {
-      Logger.log('Attempting to write formula to ' + formulaRequest.targetCell);
-      try {
-        const sheet = SpreadsheetApp.getActiveSheet();
-        const range = sheet.getRange(formulaRequest.targetCell);
-        range.setFormula(formula);
-        result.formulaWritten = true;
-        result.targetCell = formulaRequest.targetCell;
-        Logger.log('✓ Formula successfully written to ' + formulaRequest.targetCell);
-      } catch (error) {
-        result.formulaError = 'Could not write to ' + formulaRequest.targetCell + ': ' + error.message;
-        Logger.log('✗ Formula write error: ' + error.message);
-      }
-    } else {
-      Logger.log('Formula not written because:');
-      Logger.log('  - Has formula request: ' + formulaRequest.hasFormula);
-      Logger.log('  - Has formula: ' + Boolean(formula));
-      Logger.log('  - Has target cell: ' + Boolean(formulaRequest.targetCell));
-    }
-    
-    // Add the calculated value to the result
-    if (result.resultValue !== undefined) {
-      result.resultValue = result.resultValue;
-    } else if (result.rows && result.rows.length > 0 && result.rows[0].result !== undefined) {
+    // Get the calculated value from result
+    if (result.rows && result.rows.length > 0 && result.rows[0].result !== undefined) {
       result.resultValue = result.rows[0].result;
     }
     
-    Logger.log('=== END DEBUG ===');
     return result;
   } catch (error) {
     Logger.log('Error: ' + error.message);

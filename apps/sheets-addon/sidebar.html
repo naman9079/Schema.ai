@@ -120,28 +120,36 @@ function ask() {
     .withSuccessHandler(function(result){
       let html = '';
       
+      // Show the answer
       if (result.answer) {
-        html += '<strong>Answer:</strong> ' + result.answer + '<br><br>';
+        html += '<div style="margin-bottom:12px"><strong>Answer:</strong><br>' + result.answer + '</div>';
       }
       
-      if (result.resultValue !== undefined) {
-        html += '<strong>Result:</strong> ' + result.resultValue + '<br><br>';
+      // Show the calculated result prominently
+      if (result.resultValue !== undefined && result.resultValue !== null) {
+        html += '<div style="background:#e0f2fe;padding:12px;border-radius:6px;margin-bottom:12px;border-left:4px solid #0284c7">';
+        html += '<strong style="color:#0c4a6e;font-size:14px">Result:</strong><br>';
+        html += '<span style="font-size:24px;font-weight:bold;color:#0369a1">' + result.resultValue + '</span>';
+        html += '</div>';
       }
       
+      // Always show the formula if we have one
       if (result.formula) {
-        html += '<div class="formula-box"><strong>Formula:</strong> ' + result.formula + '</div>';
+        html += '<div style="background:#f0fdf4;border:2px solid #22c55e;padding:12px;border-radius:6px;margin-bottom:12px">';
+        html += '<strong style="color:#15803d">📊 Google Sheets Formula:</strong><br>';
+        html += '<code style="background:#fff;padding:8px;display:block;margin-top:6px;border-radius:4px;font-size:14px;color:#000">' + result.formula + '</code>';
+        html += '<small style="color:#166534;display:block;margin-top:6px">💡 Copy this formula and paste it into any cell</small>';
+        html += '</div>';
       }
       
-      if (result.formulaWritten) {
-        html += '<div class="success">✓ Formula written to ' + result.targetCell + '</div>';
-      }
-      
+      // Show clarification if needed
       if (result.clarification) {
-        html += '<strong>Need clarification:</strong> ' + result.clarification;
+        html += '<div style="background:#fef3c7;padding:10px;border-radius:6px;border-left:4px solid #f59e0b"><strong>Need clarification:</strong><br>' + result.clarification + '</div>';
       }
       
+      // Show error if blocked
       if (result.message && result.status === 'blocked') {
-        html += '<strong>Blocked:</strong> ' + result.message;
+        html += '<div style="background:#fee2e2;padding:10px;border-radius:6px;border-left:4px solid #ef4444"><strong>Blocked:</strong><br>' + result.message + '</div>';
       }
       
       showResult(html || 'Schema.ai returned no answer.', !result.clarification && result.status !== 'blocked');
