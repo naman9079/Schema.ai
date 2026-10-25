@@ -120,26 +120,29 @@ function ask() {
     .withSuccessHandler(function(result){
       let html = '';
       
-      // Show the answer
-      if (result.answer) {
-        html += '<div style="margin-bottom:12px"><strong>Answer:</strong><br>' + result.answer + '</div>';
-      }
-      
-      // Show the calculated result prominently
-      if (result.resultValue !== undefined && result.resultValue !== null) {
-        html += '<div style="background:#e0f2fe;padding:12px;border-radius:6px;margin-bottom:12px;border-left:4px solid #0284c7">';
-        html += '<strong style="color:#0c4a6e;font-size:14px">Result:</strong><br>';
-        html += '<span style="font-size:24px;font-weight:bold;color:#0369a1">' + result.resultValue + '</span>';
-        html += '</div>';
-      }
-      
-      // Always show the formula if we have one
+      // Always show formula FIRST and PROMINENTLY if we have one
       if (result.formula) {
-        html += '<div style="background:#f0fdf4;border:2px solid #22c55e;padding:12px;border-radius:6px;margin-bottom:12px">';
-        html += '<strong style="color:#15803d">📊 Google Sheets Formula:</strong><br>';
-        html += '<code style="background:#fff;padding:8px;display:block;margin-top:6px;border-radius:4px;font-size:14px;color:#000">' + result.formula + '</code>';
-        html += '<small style="color:#166534;display:block;margin-top:6px">💡 Copy this formula and paste it into any cell</small>';
+        html += '<div style="background:#f0fdf4;border:2px solid #22c55e;padding:16px;border-radius:8px;margin-bottom:16px">';
+        html += '<div style="display:flex;align-items:center;margin-bottom:8px"><span style="font-size:24px;margin-right:8px">📊</span><strong style="color:#15803d;font-size:16px">Google Sheets Formula:</strong></div>';
+        html += '<code style="background:#fff;padding:12px;display:block;border-radius:6px;font-size:16px;color:#000;font-weight:bold;border:1px solid#d1d5db">' + result.formula + '</code>';
+        html += '<div style="margin-top:12px;padding:10px;background:#dcfce7;border-radius:4px">';
+        html += '<strong style="color:#166534;font-size:13px">💡 How to use:</strong><br>';
+        html += '<span style="color:#15803d;font-size:12px">1. Copy the formula above<br>2. Click any cell in your sheet<br>3. Paste (Ctrl+V)<br>4. Press Enter</span>';
+        html += '</div></div>';
+      }
+      
+      // Show calculated result (but note it may be approximate)
+      if (result.resultValue !== undefined && result.resultValue !== null) {
+        html += '<div style="background:#eff6ff;padding:12px;border-radius:6px;margin-bottom:12px;border-left:4px solid #3b82f6">';
+        html += '<strong style="color:#1e40af;font-size:13px">AI Calculated Result:</strong><br>';
+        html += '<span style="font-size:20px;font-weight:bold;color:#1d4ed8">' + result.resultValue + '</span><br>';
+        html += '<small style="color:#1e40af">Note: Use the formula above for exact calculation</small>';
         html += '</div>';
+      }
+      
+      // Show the answer text
+      if (result.answer) {
+        html += '<div style="margin-bottom:12px;padding:10px;background:#f9fafb;border-radius:6px"><strong style="font-size:13px">Response:</strong><br><span style="font-size:13px">' + result.answer + '</span></div>';
       }
       
       // Show clarification if needed
