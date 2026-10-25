@@ -99,11 +99,9 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
     return sendJson(res, 200, { 
       status: 'ok', 
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
       grokConfigured: Boolean(process.env.GROK_API_KEY),
       aiConfigured: Boolean(process.env.GROK_API_KEY || process.env.GEMINI_API_KEY),
-      geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
-      grokModel: process.env.GROK_MODEL || DEFAULT_GROK_MODEL
+      activeModel: process.env.GROK_API_KEY ? (process.env.GROK_MODEL || DEFAULT_GROK_MODEL) : 'none'
     });
   }
   if (url.pathname === '/api/ai/interpret' && req.method === 'POST') {
