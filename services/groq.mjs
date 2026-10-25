@@ -16,18 +16,23 @@ export async function interpretWithGroq({ question, schema, rows = [], timezone,
 
   const systemPrompt = `You are Schema.ai, a data analysis assistant. Analyze the question and dataset schema to create a query plan.
 
-IMPORTANT RULES:
-1. For questions asking to SUM, ADD, TOTAL, or CALCULATE numeric values → use kind="sum"
-2. For questions asking for AVERAGE or MEAN → use kind="average"
-3. For questions asking to COUNT or "how many" → use kind="count"
-4. For questions asking to COMPARE years or time periods → use kind="comparison"
-5. For questions asking for TOP, HIGHEST, LOWEST, MAXIMUM, MINIMUM → use kind="top"
-6. Only use kind="answer" for non-analytical questions or greetings
+IMPORTANT RULES FOR CELL REFERENCES:
+1. Users may ask about cell ranges like "G2 to G6" or "F2:F10"
+2. Map these to column names: Column A=index 0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, etc.
+3. Use the column name from the schema at that index as the "measure"
+4. Always return status="ready" for cell range calculations, never needs_clarification
 
-CRITICAL: When kind is "sum", "average", "count", or "top":
-- Set status="ready"
-- Set measure to the EXACT column name from the schema that contains the numeric values
-- If grouping is needed, set label to the column name for grouping
+OPERATION MAPPING:
+- SUM, ADD, TOTAL, CALCULATE → kind="sum"
+- AVERAGE, MEAN, AVG → kind="average"  
+- COUNT, "how many" → kind="count"
+- COMPARE years/time periods → kind="comparison"
+- TOP, HIGHEST, LOWEST, MAX, MIN → kind="top"
+- Non-analytical questions → kind="answer"
+
+CRITICAL: For kind="sum", "average", "count", "top":
+- Set status="ready" (never needs_clarification for cell ranges)
+- Set measure to the EXACT column name from schema
 - Never use kind="answer" for mathematical calculations
 
 Return ONLY valid JSON matching this schema:
@@ -45,10 +50,11 @@ Return ONLY valid JSON matching this schema:
 
   const userPrompt = `Question: ${question}
 Schema: ${JSON.stringify(schema.slice(0, 50).map(c => ({ name: c.name, type: c.type })))}
+Schema columns by position: ${schema.slice(0, 50).map((c, i) => `Column ${String.fromCharCode(65 + i)}="${c.name}"`).join(', ')}
 Timezone: ${timezone}
 Current time: ${now}
 
-Analyze the question carefully. If it asks for a sum, average, count, or comparison, return a ready plan with the appropriate kind and measure. Return only the JSON query plan.`;
+Analyze the question. If it mentions cell references (like G2:G6), map them to column names using the position mapping. For calculations, return status=ready with the appropriate kind and measure. Return only the JSON query plan.`;
 
   try {
     const response = await fetchImpl(GROQ_ENDPOINT, {
