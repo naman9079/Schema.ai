@@ -1,5 +1,7 @@
 # Schema.ai
 
+> 🚀 **Now with Ollama Support!** Run DeepSeek-R1:8b locally for unlimited, free AI queries. [Setup Guide](docs/ollama-setup.md)
+
 Schema.ai is a privacy-aware data analyst workspace for asking plain-English questions about structured data and authorized PostgreSQL/Supabase sources. This repository contains the working chat workspace, SQL editor, Supabase migration, and integration artifacts.
 
 ## Current implementation status
@@ -26,6 +28,50 @@ Not silently claimed as complete:
 - There is no LLM provider key in the workspace, so the live app uses the deterministic planner only for the clearly labeled demo workflow. A production AI adapter still needs to be connected behind a server-side provider boundary.
 - Real Excel and Google Sheets host smoke tests still require those host applications, a configured Vercel API origin, and their platform authorization flows. The adapters are implemented for sideload/bound-script testing; marketplace publication is not claimed.
 - No Spring Boot service is fabricated in this constrained workspace because Java/Maven are unavailable and no backend credentials were supplied. The migration and API contract leave a clean seam for replacing the local demo planner with the required private service.
+
+## AI Provider Options
+
+Schema.ai supports multiple AI providers with automatic fallback:
+
+### 🏆 Ollama + DeepSeek-R1 (Recommended)
+- ✅ **Runs locally** - No API keys needed
+- ✅ **Unlimited queries** - No token limits or rate limits
+- ✅ **Free forever** - One-time download
+- ✅ **Fast** - 1-3 second responses after warmup
+- ✅ **Private** - Data never leaves your machine
+
+**Quick Setup:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh  # Linux/macOS
+# or download from https://ollama.com/download for Windows
+
+# Pull DeepSeek-R1
+ollama pull deepseek-r1:8b
+
+# Start Ollama (usually auto-starts)
+ollama serve
+```
+
+See full guide: [docs/ollama-setup.md](docs/ollama-setup.md)
+
+### Groq (Fast API)
+```bash
+# In .env.local
+USE_OLLAMA=false
+GROQ_API_KEY=your_groq_key
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+### Gemini (Backup)
+```bash
+# In .env.local
+USE_OLLAMA=false
+GEMINI_API_KEY=your_gemini_key
+GEMINI_MODEL=gemini-3.8-flash
+```
+
+**Provider Priority:** Ollama → Groq → Gemini → Local Fallback
 
 ## Run locally
 

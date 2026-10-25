@@ -11,6 +11,7 @@ import {
 } from '../web/planner.mjs';
 import { interpretQuestion, DEFAULT_GEMINI_MODEL } from './gemini.mjs';
 import { interpretWithGroq, DEFAULT_GROQ_MODEL } from './groq.mjs';
+import { interpretWithOllama, DEFAULT_OLLAMA_MODEL } from './ollama.mjs';
 
 function payloadRows(payload) {
   const headers = Array.isArray(payload?.headers) ? payload.headers.map((header, index) => normalizeHeader(header, index)) : [];
@@ -24,7 +25,20 @@ function payloadRows(payload) {
   return rows;
 }
 
-export async function answerPluginQuestion({ question, payload, apiKey, groqApiKey, groqModel = DEFAULT_GROQ_MODEL, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
+export async function answerPluginQuestion({ 
+  question, 
+  payload, 
+  apiKey, 
+  groqApiKey, 
+  groqModel = DEFAULT_GROQ_MODEL, 
+  ollamaBaseUrl = 'http://localhost:11434',
+  ollamaModel = DEFAULT_OLLAMA_MODEL,
+  useOllama = true,
+  model = DEFAULT_GEMINI_MODEL, 
+  timezone = 'UTC', 
+  now = new Date().toISOString(), 
+  fetchImpl = fetch 
+}) {
   const text = String(question || '').trim();
   if (!text || text.length > 2000) throw new Error('Question must be between 1 and 2000 characters.');
   const rows = payloadRows(payload);
@@ -32,10 +46,38 @@ export async function answerPluginQuestion({ question, payload, apiKey, groqApiK
   let interpretation;
   let providerNotice = '';
   
-  console.log('answerPluginQuestion called:', { hasGroqKey: Boolean(groqApiKey), hasGeminiKey: Boolean(apiKey), question: text.substring(0, 50) });
+  console.log('answerPluginQuestion called:', { 
+    useOllama, 
+    hasGroqKey: Boolean(groqApiKey), 
+    hasGeminiKey: Boolean(apiKey), 
+    question: text.substring(0, 50) 
+  });
   
   try {
-    // Try Groq first if available, fallback to Gemini
+    // Try Ollama first (local, no API key needed)
+    if (useOllama) {
+      try {
+        console.log('Attempting Ollama interpretation with model:', ollamaModel);
+        interpretation = await interpretWithOllama({ 
+          question: text, 
+          schema, 
+          rows, 
+          timezone, 
+          now, 
+          model: ollamaModel, 
+          baseUrl: ollamaBaseUrl,
+          fetchImpl,
+          timeoutMs: 120000,
+        });
+        console.log('Ollama interpretation successful:', interpretation.provider, interpretation.model);
+        return processInterpretation(interpretation, text, schema, rows, now, providerNotice);
+      } catch (ollamaError) {
+        console.warn('Ollama failed, trying fallback:', ollamaError.message);
+        providerNotice = `Ollama unavailable: ${ollamaError.message}. `;
+      }
+    }
+    
+    // Fallback to Groq or Gemini
     if (groqApiKey) {
       console.log('Attempting Groq interpretation with model:', groqModel);
       interpretation = await interpretWithGroq({ question: text, schema, rows, timezone, now, apiKey: groqApiKey, model: groqModel, fetchImpl });
@@ -47,11 +89,17 @@ export async function answerPluginQuestion({ question, payload, apiKey, groqApiK
     } else {
       throw new Error('No AI provider configured');
     }
+    
+    return processInterpretation(interpretation, text, schema, rows, now, providerNotice);
   } catch (error) {
-    console.error('AI interpretation error, falling back to local:', error.message);
+    console.error('All AI providers failed, falling back to local:', error.message);
     interpretation = { provider: 'deterministic-plugin-fallback', model: 'local-planner', plan: buildLocalAnswer(text, schema, rows), fallback: true };
-    providerNotice = `AI unavailable: ${error.message} Local plugin fallback used explicitly.`;
+    providerNotice += `All AI providers unavailable: ${error.message}. Local plugin fallback used.`;
+    return processInterpretation(interpretation, text, schema, rows, now, providerNotice);
   }
+}
+
+function processInterpretation(interpretation, text, schema, rows, now, providerNotice) {
   const plan = interpretation.fallback ? interpretation.plan : (interpretation.plan?.status === 'unsupported' || interpretation.plan?.kind === 'unsupported'
     ? buildLocalAnswer(text, schema, rows)
     : buildPlanFromInterpretation(text, schema, interpretation.plan, new Date(now)));
