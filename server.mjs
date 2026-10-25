@@ -97,7 +97,14 @@ function sendPluginNoContent(res) {
 async function handleApi(req, res, url) {
   if (url.pathname === '/api/plugin/ask' && req.method === 'OPTIONS') return sendPluginNoContent(res);
   if (url.pathname === '/api/health' && req.method === 'GET') {
-    return sendJson(res, 200, { status: 'ok', geminiConfigured: Boolean(process.env.GEMINI_API_KEY), geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL });
+    return sendJson(res, 200, { 
+      status: 'ok', 
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      grokConfigured: Boolean(process.env.GROK_API_KEY),
+      aiConfigured: Boolean(process.env.GROK_API_KEY || process.env.GEMINI_API_KEY),
+      geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+      grokModel: process.env.GROK_MODEL || DEFAULT_GROK_MODEL
+    });
   }
   if (url.pathname === '/api/ai/interpret' && req.method === 'POST') {
     const input = await readJson(req, 2 * 1024 * 1024);
