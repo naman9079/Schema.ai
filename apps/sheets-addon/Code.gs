@@ -31,6 +31,104 @@ function askSchemaAi(question, payload) {
   return body;
 }
 
+function writeFormulaToCell(formula, cellAddress) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const range = sheet.getRange(cellAddress);
+    range.setFormula(formula);
+    return `Formula written to ${cellAddress}: ${formula}`;
+  } catch (error) {
+    throw new Error(`Could not write to cell ${cellAddress}: ${error.message}`);
+  }
+}
+
+function detectFormulaRequest(question) {
+  // Check if question mentions writing to a specific cell like "in F12" or "to F12" or "at F12"
+  const cellMatch = question.match(/\b(?:in|to|at|into|write to|put in)\s+([A-Z]+\d+)\b/i);
+  if (cellMatch) {
+    return {
+      hasFormula: true,
+      targetCell: cellMatch[1].toUpperCase(),
+      cleanQuestion: question.replace(cellMatch[0], '').trim()
+    };
+  }
+  return { hasFormula: false, targetCell: null, cleanQuestion: question };
+}
+
+function buildFormulaFromResult(result, payload) {
+  // Build a Google Sheets formula based on the analysis result
+  if (!result.kind || result.status !== 'answered' && result.status !== 'answered_with_warnings') {
+    return null;
+  }
+  
+  // Get the selected range address from payload
+  const rangeAddress = payload.address || 'A:A';
+  
+  // Determine column letter from measure name
+  const measureIndex = payload.headers.indexOf(result.measure);
+  if (measureIndex < 0) return null;
+  
+  const columnLetter = String.fromCharCode(65 + measureIndex); // A=65
+  
+  switch(result.kind) {
+    case 'sum':
+      return '=SUM(' + columnLetter + ':' + columnLetter + ')';
+    case 'average':
+      return '=AVERAGE(' + columnLetter + ':' + columnLetter + ')';
+    case 'count':
+      return '=COUNT(' + columnLetter + ':' + columnLetter + ')';
+    default:
+      return null;
+  }
+}
+
+function askSchemaAiWithFormula(question, payload) {
+  // Detect if user wants to write formula to a cell
+  const formulaRequest = detectFormulaRequest(question);
+  const cleanQuestion = formulaRequest.cleanQuestion || question;
+  
+  // Call the AI API
+  const response = UrlFetchApp.fetch(apiBaseUrl_() + '/api/plugin/ask', {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    payload: JSON.stringify({ source: 'sheets_selected_range_or_file', question: cleanQuestion, payload: payload }),
+  });
+  
+  const result = JSON.parse(response.getContentText() || '{}');
+  if (response.getResponseCode() >= 400) {
+    throw new Error(result.error || 'Schema.ai request failed (' + response.getResponseCode() + ')');
+  }
+  
+  // Try to build a formula
+  const formula = buildFormulaFromResult(result, payload);
+  if (formula) {
+    result.formula = formula;
+  }
+  
+  // If user specified a target cell and we have a formula, write it
+  if (formulaRequest.hasFormula && formula && formulaRequest.targetCell) {
+    try {
+      const sheet = SpreadsheetApp.getActiveSheet();
+      const range = sheet.getRange(formulaRequest.targetCell);
+      range.setFormula(formula);
+      result.formulaWritten = true;
+      result.targetCell = formulaRequest.targetCell;
+    } catch (error) {
+      result.formulaError = 'Could not write to ' + formulaRequest.targetCell + ': ' + error.message;
+    }
+  }
+  
+  // Add the calculated value to the result
+  if (result.resultValue !== undefined) {
+    result.resultValue = result.resultValue;
+  } else if (result.rows && result.rows.length > 0 && result.rows[0].result !== undefined) {
+    result.resultValue = result.rows[0].result;
+  }
+  
+  return result;
+}
+
 function writePayloadToSheet(payload) {
   if (!payload || !Array.isArray(payload.headers) || !Array.isArray(payload.rows)) throw new Error('No imported file or selected range is ready.');
   const values = [payload.headers].concat(payload.rows);
