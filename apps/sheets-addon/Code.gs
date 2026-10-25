@@ -126,6 +126,19 @@ function buildFormulaFromResult(result, payload) {
 }
 
 function askSchemaAiWithFormula(question, payload) {
+  // Parse cell range from question (e.g., "F2 to F10" or "G2:G20")
+  const rangeMatch = question.match(/([A-Z]+)(\d+)\s*(?:to|:)\s*([A-Z]+)?(\d+)/i);
+  let specificRange = null;
+  
+  if (rangeMatch) {
+    const col1 = rangeMatch[1];
+    const row1 = rangeMatch[2];
+    const col2 = rangeMatch[3] || col1;
+    const row2 = rangeMatch[4];
+    specificRange = col1 + row1 + ':' + col2 + row2;
+    Logger.log('Detected specific range from question: ' + specificRange);
+  }
+  
   // Call the AI API
   try {
     const response = UrlFetchApp.fetch(apiBaseUrl_() + '/api/plugin/ask', {
@@ -140,11 +153,30 @@ function askSchemaAiWithFormula(question, payload) {
       throw new Error(result.error || 'Schema.ai request failed (' + response.getResponseCode() + ')');
     }
     
-    // Always try to build a formula for calculations
-    const formula = buildFormulaFromResult(result, payload);
+    // Build formula - use specific range if detected
+    let formula = null;
+    if (specificRange && result.kind) {
+      // User specified exact range, build formula directly
+      switch(result.kind) {
+        case 'sum':
+          formula = '=SUM(' + specificRange + ')';
+          break;
+        case 'average':
+          formula = '=AVERAGE(' + specificRange + ')';
+          break;
+        case 'count':
+          formula = '=COUNT(' + specificRange + ')';
+          break;
+      }
+      Logger.log('Built formula with specific range: ' + formula);
+    } else {
+      // Use measure-based formula building
+      formula = buildFormulaFromResult(result, payload);
+    }
+    
     if (formula) {
       result.formula = formula;
-      Logger.log('Formula generated: ' + formula);
+      Logger.log('Final formula: ' + formula);
     }
     
     // Get the calculated value from result
