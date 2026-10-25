@@ -70,17 +70,22 @@ function buildFormulaFromResult(result, payload) {
     return null;
   }
   
-  // Determine column letter from measure name
+  // Determine column letter from measure name (case-insensitive)
   if (!result.measure) {
     Logger.log('No measure in result, cannot determine column');
     return null;
   }
   
-  const measureIndex = payload.headers.indexOf(result.measure);
+  const measureLower = result.measure.toLowerCase();
+  const measureIndex = payload.headers.findIndex(function(h) { 
+    return h.toLowerCase() === measureLower; 
+  });
+  
   Logger.log('Measure: ' + result.measure + ', Index: ' + measureIndex);
+  Logger.log('Headers: ' + JSON.stringify(payload.headers));
   
   if (measureIndex < 0) {
-    Logger.log('Measure not found in headers');
+    Logger.log('Measure not found in headers (case-insensitive search)');
     return null;
   }
   
