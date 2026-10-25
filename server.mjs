@@ -230,12 +230,13 @@ async function handle(req, res) {
   if (url.pathname.startsWith('/api/')) return handleApi(req, res, url);
 
   if (url.pathname === '/config.js') {
+    const grokModel = process.env.GROK_MODEL || DEFAULT_GROK_MODEL;
     const payload = {
       supabaseUrl: process.env.DATAPILOT_SUPABASE_URL || '',
       supabaseAnonKey: process.env.DATAPILOT_SUPABASE_ANON_KEY || '',
       apiBaseUrl: 'https://schemaai-delta.vercel.app/api',
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-      geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+      geminiConfigured: Boolean(process.env.GROK_API_KEY),
+      geminiModel: grokModel,
     };
     return send(res, 200, `window.DATAPILOT_CONFIG = ${JSON.stringify(payload)};`, {
       'Content-Type': 'text/javascript; charset=utf-8',
