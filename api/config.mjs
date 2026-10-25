@@ -1,12 +1,12 @@
-import { DEFAULT_GEMINI_MODEL } from '../services/gemini.mjs';
+import { DEFAULT_GROK_MODEL } from '../services/grok.mjs';
 
 export default function handler(req, res) {
   const payload = {
     supabaseUrl: process.env.DATAPILOT_SUPABASE_URL || '',
     supabaseAnonKey: process.env.DATAPILOT_SUPABASE_ANON_KEY || '',
     apiBaseUrl: 'https://schemaai-delta.vercel.app/api',
-    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
-    geminiModel: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+    geminiConfigured: Boolean(process.env.GROK_API_KEY),
+    geminiModel: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
   };
   res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
