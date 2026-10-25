@@ -1,7 +1,7 @@
 // Groq AI adapter for Groq's fast inference API
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
-export const DEFAULT_GROQ_MODEL = 'llama-3.1-70b-versatile';
+export const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 export async function interpretWithGroq({ question, schema, rows = [], timezone, now, apiKey, model = DEFAULT_GROQ_MODEL, fetchImpl = fetch, timeoutMs = 30000 }) {
   if (!apiKey) {
