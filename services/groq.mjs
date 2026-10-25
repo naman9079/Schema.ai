@@ -197,7 +197,8 @@ Analyze these rows thoroughly. Identify all data quality issues and create a com
       throw new Error('Groq returned no cleaning plan.');
     }
 
-    const plan = JSON.parse(text);
+    const rawPlan = JSON.parse(text);
+    const plan = normalizeCleaningPlan(rawPlan);
     return { provider: 'groq', model, plan, usage: body.usage || null };
   } catch (error) {
     if (error.name === 'AbortError') {
@@ -209,4 +210,27 @@ Analyze these rows thoroughly. Identify all data quality issues and create a com
   } finally {
     clearTimeout(timeout);
   }
+}
+
+
+function normalizeCleaningPlan(value) {
+  const plan = value && typeof value === 'object' ? value : {};
+  const status = ['ready', 'needs_clarification', 'unsupported'].includes(plan.status) ? plan.status : 'unsupported';
+  const allowedOperations = new Set(['trim_text', 'empty_to_null', 'normalize_null_tokens', 'coerce_values', 'drop_blank_rows', 'drop_exact_duplicates']);
+  const operations = Array.isArray(plan.operations) ? plan.operations.map((operation) => ({
+    type: allowedOperations.has(operation?.type) ? operation.type : null,
+    columns: Array.isArray(operation?.columns) ? operation.columns.map((column) => String(column).slice(0, 120)).slice(0, 100) : [],
+    reason: String(operation?.reason || '').slice(0, 500),
+  })).filter((operation) => operation.type) : [];
+  const output = {
+    status,
+    summary: String(plan.summary || 'No cleaning summary was returned.').slice(0, 1600),
+    operations,
+    nullTokens: Array.isArray(plan.nullTokens) ? plan.nullTokens.map((token) => String(token).trim().toLowerCase()).filter(Boolean).slice(0, 20) : ['na', 'n/a', 'null', '-', '?', 'n.a.'],
+    warnings: Array.isArray(plan.warnings) ? plan.warnings.map((warning) => String(warning).slice(0, 500)).slice(0, 12) : [],
+    assumptions: Array.isArray(plan.assumptions) ? plan.assumptions.map((item) => String(item).slice(0, 300)).slice(0, 8) : [],
+  };
+  if (output.status === 'ready' && !output.operations.length) output.status = 'needs_clarification';
+  if (output.status === 'needs_clarification' && !output.summary) output.summary = 'AI could not produce a safe cleaning plan.';
+  return output;
 }
