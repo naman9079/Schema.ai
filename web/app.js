@@ -722,7 +722,7 @@ function bindEvents() {
      state.notice = `${state.dataset.name} selected.`; 
      render(); 
    }));
-   document.querySelectorAll('[data-history-id]').forEach((element) => element.addEventListener('click', () => { const item = state.history.history.find((entry) => entry.id === element.dataset.historyId); if (item) { state.dataset = state.datasets.find((dataset) => dataset.name === item.datasetName) || state.dataset; state.result = item.result; state.view = 'chat'; render(); } }));
+   document.querySelectorAll('[data-history-id]').forEach((element) => element.addEventListener('click', () => { const item = state.history.history.find((entry) => entry.id === element.dataset.historyId); if (item) { state.dataset = state.datasets.find((dataset) => dataset.name === item.datasetName) || state.dataset; state.result = item.result; state.lastQuestion = item.question; state.view = 'chat'; render(); } }));
   document.querySelectorAll('[data-result-tab]').forEach((element) => element.addEventListener('click', () => { if (state.result) { state.result.tab = element.dataset.resultTab; render(); } }));
    document.querySelectorAll('[data-suggestion]').forEach((element) => element.addEventListener('click', () => { const input = document.querySelector('#question'); if (input) { input.value = element.dataset.suggestion; input.focus(); } }));
    document.querySelector('[data-action="open-chat-upload"]')?.addEventListener('click', () => document.querySelector('#chat-upload-file')?.click());
