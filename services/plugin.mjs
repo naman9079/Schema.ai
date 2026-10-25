@@ -24,7 +24,7 @@ function payloadRows(payload) {
   return rows;
 }
 
-export async function answerPluginQuestion({ question, payload, apiKey, grokApiKey, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
+export async function answerPluginQuestion({ question, payload, apiKey, grokApiKey, grokModel = DEFAULT_GROK_MODEL, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
   const text = String(question || '').trim();
   if (!text || text.length > 2000) throw new Error('Question must be between 1 and 2000 characters.');
   const rows = payloadRows(payload);
@@ -34,7 +34,7 @@ export async function answerPluginQuestion({ question, payload, apiKey, grokApiK
   try {
     // Try Grok first if available, fallback to Gemini
     if (grokApiKey) {
-      interpretation = await interpretWithGrok({ question: text, schema, rows, timezone, now, apiKey: grokApiKey, model: process.env.GROK_MODEL || DEFAULT_GROK_MODEL, fetchImpl });
+      interpretation = await interpretWithGrok({ question: text, schema, rows, timezone, now, apiKey: grokApiKey, model: grokModel, fetchImpl });
     } else if (apiKey) {
       interpretation = await interpretQuestion({ question: text, schema, rows, timezone, now, apiKey, model, fetchImpl });
     } else {
