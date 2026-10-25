@@ -31,16 +31,24 @@ export async function answerPluginQuestion({ question, payload, apiKey, groqApiK
   const schema = inferSchema(rows);
   let interpretation;
   let providerNotice = '';
+  
+  console.log('answerPluginQuestion called:', { hasGroqKey: Boolean(groqApiKey), hasGeminiKey: Boolean(apiKey), question: text.substring(0, 50) });
+  
   try {
     // Try Groq first if available, fallback to Gemini
     if (groqApiKey) {
+      console.log('Attempting Groq interpretation with model:', groqModel);
       interpretation = await interpretWithGroq({ question: text, schema, rows, timezone, now, apiKey: groqApiKey, model: groqModel, fetchImpl });
+      console.log('Groq interpretation successful:', interpretation.provider, interpretation.model);
     } else if (apiKey) {
+      console.log('Attempting Gemini interpretation with model:', model);
       interpretation = await interpretQuestion({ question: text, schema, rows, timezone, now, apiKey, model, fetchImpl });
+      console.log('Gemini interpretation successful:', interpretation.provider, interpretation.model);
     } else {
       throw new Error('No AI provider configured');
     }
   } catch (error) {
+    console.error('AI interpretation error, falling back to local:', error.message);
     interpretation = { provider: 'deterministic-plugin-fallback', model: 'local-planner', plan: buildLocalAnswer(text, schema, rows), fallback: true };
     providerNotice = `AI unavailable: ${error.message} Local plugin fallback used explicitly.`;
   }

@@ -208,6 +208,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/plugin/ask' && req.method === 'POST') {
     const input = await readJson(req, 8 * 1024 * 1024);
     try {
+      console.log('Plugin request received:', { hasGroqKey: Boolean(process.env.GROQ_API_KEY), question: input.question?.substring(0, 50) });
       const result = await answerPluginQuestion({
         question: input.question,
         payload: input.payload,
@@ -216,8 +217,10 @@ async function handleApi(req, res, url) {
         timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
         now: new Date().toISOString(),
       });
+      console.log('Plugin response:', { status: result.status, provider: result.provider });
       return sendPluginJson(res, 200, result);
     } catch (error) {
+      console.error('Plugin error:', error);
       return sendPluginJson(res, 400, { error: error.message, code: 'PLUGIN_REQUEST_FAILED' });
     }
   }
