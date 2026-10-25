@@ -57,13 +57,32 @@ function detectFormulaRequest(question) {
 
 function buildFormulaFromResult(result, payload) {
   // Build a Google Sheets formula based on the analysis result
-  if (!result.kind || (result.status !== 'answered' && result.status !== 'answered_with_warnings')) {
+  Logger.log('buildFormulaFromResult called with status=' + result.status + ', kind=' + result.kind);
+  
+  if (!result.kind) {
+    Logger.log('No kind in result, cannot build formula');
+    return null;
+  }
+  
+  // Accept answered, answered_with_warnings, or ready
+  if (result.status !== 'answered' && result.status !== 'answered_with_warnings' && result.status !== 'ready') {
+    Logger.log('Status not acceptable for formula: ' + result.status);
     return null;
   }
   
   // Determine column letter from measure name
+  if (!result.measure) {
+    Logger.log('No measure in result, cannot determine column');
+    return null;
+  }
+  
   const measureIndex = payload.headers.indexOf(result.measure);
-  if (measureIndex < 0) return null;
+  Logger.log('Measure: ' + result.measure + ', Index: ' + measureIndex);
+  
+  if (measureIndex < 0) {
+    Logger.log('Measure not found in headers');
+    return null;
+  }
   
   const columnLetter = String.fromCharCode(65 + measureIndex); // A=65
   
@@ -77,19 +96,28 @@ function buildFormulaFromResult(result, payload) {
       const startRow = match[2];
       const endRow = match[4];
       rangeFormula = columnLetter + startRow + ':' + columnLetter + endRow;
+      Logger.log('Using range: ' + rangeFormula);
     }
   }
   
+  let formula = null;
   switch(result.kind) {
     case 'sum':
-      return '=SUM(' + rangeFormula + ')';
+      formula = '=SUM(' + rangeFormula + ')';
+      break;
     case 'average':
-      return '=AVERAGE(' + rangeFormula + ')';
+      formula = '=AVERAGE(' + rangeFormula + ')';
+      break;
     case 'count':
-      return '=COUNT(' + rangeFormula + ')';
+      formula = '=COUNT(' + rangeFormula + ')';
+      break;
     default:
+      Logger.log('Kind not supported for formula: ' + result.kind);
       return null;
   }
+  
+  Logger.log('Built formula: ' + formula);
+  return formula;
 }
 
 function askSchemaAiWithFormula(question, payload) {
