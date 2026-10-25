@@ -15,6 +15,21 @@ export async function interpretWithGroq({ question, schema, rows = [], timezone,
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   const systemPrompt = `You are Schema.ai, a data analysis assistant. Analyze the question and dataset schema to create a query plan.
+
+IMPORTANT RULES:
+1. For questions asking to SUM, ADD, TOTAL, or CALCULATE numeric values → use kind="sum"
+2. For questions asking for AVERAGE or MEAN → use kind="average"
+3. For questions asking to COUNT or "how many" → use kind="count"
+4. For questions asking to COMPARE years or time periods → use kind="comparison"
+5. For questions asking for TOP, HIGHEST, LOWEST, MAXIMUM, MINIMUM → use kind="top"
+6. Only use kind="answer" for non-analytical questions or greetings
+
+CRITICAL: When kind is "sum", "average", "count", or "top":
+- Set status="ready"
+- Set measure to the EXACT column name from the schema that contains the numeric values
+- If grouping is needed, set label to the column name for grouping
+- Never use kind="answer" for mathematical calculations
+
 Return ONLY valid JSON matching this schema:
 {
   "status": "ready" | "needs_clarification" | "unsupported",
@@ -33,7 +48,7 @@ Schema: ${JSON.stringify(schema.slice(0, 50).map(c => ({ name: c.name, type: c.t
 Timezone: ${timezone}
 Current time: ${now}
 
-Return only the JSON query plan.`;
+Analyze the question carefully. If it asks for a sum, average, count, or comparison, return a ready plan with the appropriate kind and measure. Return only the JSON query plan.`;
 
   try {
     const response = await fetchImpl(GROQ_ENDPOINT, {
