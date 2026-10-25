@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { interpretQuestion, DEFAULT_GEMINI_MODEL } from './services/gemini.mjs';
 import { interpretCustomQuestion } from './services/custom-provider.mjs';
 import { cleanWithGemini, DEFAULT_CLEANING_MODEL } from './services/gemini-clean.mjs';
-import { interpretWithGrok, cleanWithGrok, DEFAULT_GROK_MODEL } from './services/grok.mjs';
+import { interpretWithGroq, cleanWithGroq, DEFAULT_GROQ_MODEL } from './services/groq.mjs';
 import { answerPluginQuestion } from './services/plugin.mjs';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)));
@@ -99,9 +99,9 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/health' && req.method === 'GET') {
     return sendJson(res, 200, { 
       status: 'ok', 
-      grokConfigured: Boolean(process.env.GROK_API_KEY),
-      aiConfigured: Boolean(process.env.GROK_API_KEY || process.env.GEMINI_API_KEY),
-      activeModel: process.env.GROK_API_KEY ? (process.env.GROK_MODEL || DEFAULT_GROK_MODEL) : 'none'
+      groqConfigured: Boolean(process.env.GROQ_API_KEY),
+      aiConfigured: Boolean(process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY),
+      activeModel: process.env.GROQ_API_KEY ? (process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL) : 'none'
     });
   }
   if (url.pathname === '/api/ai/interpret' && req.method === 'POST') {
@@ -112,16 +112,16 @@ async function handleApi(req, res, url) {
     if (!schema.length || schema.length > 100) return sendJson(res, 400, { error: 'Authorized schema metadata is required.' });
     try {
       let interpretation;
-      // Try Grok first if configured, fallback to Gemini
-      if (process.env.GROK_API_KEY) {
-        interpretation = await interpretWithGrok({
+      // Try Groq first if configured, fallback to Gemini
+      if (process.env.GROQ_API_KEY) {
+        interpretation = await interpretWithGroq({
           question,
           schema,
           rows: Array.isArray(input.rows) ? input.rows.slice(0, 500) : [],
           timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
           now: new Date().toISOString(),
-          apiKey: process.env.GROK_API_KEY,
-          model: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
+          apiKey: process.env.GROQ_API_KEY,
+          model: process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
         });
       } else if (process.env.GEMINI_API_KEY) {
         interpretation = await interpretQuestion({
@@ -134,13 +134,13 @@ async function handleApi(req, res, url) {
           model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
         });
       } else {
-        const error = new Error('No AI provider configured. Set GROK_API_KEY or GEMINI_API_KEY.');
+        const error = new Error('No AI provider configured. Set GROQ_API_KEY or GEMINI_API_KEY.');
         error.code = 'AI_NOT_CONFIGURED';
         throw error;
       }
       return sendJson(res, 200, interpretation);
     } catch (error) {
-      const status = (error.code === 'GEMINI_NOT_CONFIGURED' || error.code === 'GROK_NOT_CONFIGURED' || error.code === 'AI_NOT_CONFIGURED') ? 503 : error.status === 429 ? 429 : 502;
+      const status = (error.code === 'GEMINI_NOT_CONFIGURED' || error.code === 'GROQ_NOT_CONFIGURED' || error.code === 'AI_NOT_CONFIGURED') ? 503 : error.status === 429 ? 429 : 502;
       return sendJson(res, status, { error: error.message, code: error.code || 'AI_REQUEST_FAILED' });
     }
   }
@@ -173,16 +173,16 @@ async function handleApi(req, res, url) {
     if (!schema.length || !rows.length) return sendJson(res, 400, { error: 'Schema metadata and at least one row are required.' });
     try {
       let result;
-      // Try Grok first if configured, fallback to Gemini
-      if (process.env.GROK_API_KEY) {
-        result = await cleanWithGrok({
+      // Try Groq first if configured, fallback to Gemini
+      if (process.env.GROQ_API_KEY) {
+        result = await cleanWithGroq({
           datasetName: typeof input.datasetName === 'string' ? input.datasetName : 'uploaded data',
           schema,
           rows,
           timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
           now: new Date().toISOString(),
-          apiKey: process.env.GROK_API_KEY,
-          model: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
+          apiKey: process.env.GROQ_API_KEY,
+          model: process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
         });
       } else if (process.env.GEMINI_API_KEY) {
         result = await cleanWithGemini({
@@ -195,13 +195,13 @@ async function handleApi(req, res, url) {
           model: process.env.GEMINI_MODEL || DEFAULT_CLEANING_MODEL,
         });
       } else {
-        const error = new Error('No AI provider configured. Set GROK_API_KEY or GEMINI_API_KEY.');
+        const error = new Error('No AI provider configured. Set GROQ_API_KEY or GEMINI_API_KEY.');
         error.code = 'AI_NOT_CONFIGURED';
         throw error;
       }
       return sendJson(res, 200, result);
     } catch (error) {
-      const status = (error.code === 'GEMINI_NOT_CONFIGURED' || error.code === 'GROK_NOT_CONFIGURED' || error.code === 'AI_NOT_CONFIGURED') ? 503 : error.status === 429 ? 429 : 502;
+      const status = (error.code === 'GEMINI_NOT_CONFIGURED' || error.code === 'GROQ_NOT_CONFIGURED' || error.code === 'AI_NOT_CONFIGURED') ? 503 : error.status === 429 ? 429 : 502;
       return sendJson(res, status, { error: error.message, code: error.code || 'AI_CLEANING_FAILED' });
     }
   }
@@ -211,8 +211,8 @@ async function handleApi(req, res, url) {
       const result = await answerPluginQuestion({
         question: input.question,
         payload: input.payload,
-        grokApiKey: process.env.GROK_API_KEY,
-        grokModel: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
+        groqApiKey: process.env.GROQ_API_KEY,
+        groqModel: process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL,
         timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
         now: new Date().toISOString(),
       });
@@ -230,13 +230,13 @@ async function handle(req, res) {
   if (url.pathname.startsWith('/api/')) return handleApi(req, res, url);
 
   if (url.pathname === '/config.js') {
-    const grokModel = process.env.GROK_MODEL || DEFAULT_GROK_MODEL;
+    const groqModel = process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL;
     const payload = {
       supabaseUrl: process.env.DATAPILOT_SUPABASE_URL || '',
       supabaseAnonKey: process.env.DATAPILOT_SUPABASE_ANON_KEY || '',
       apiBaseUrl: 'https://schemaai-delta.vercel.app/api',
-      geminiConfigured: Boolean(process.env.GROK_API_KEY),
-      geminiModel: grokModel,
+      geminiConfigured: Boolean(process.env.GROQ_API_KEY),
+      geminiModel: groqModel,
     };
     return send(res, 200, `window.DATAPILOT_CONFIG = ${JSON.stringify(payload)};`, {
       'Content-Type': 'text/javascript; charset=utf-8',

@@ -10,7 +10,7 @@ import {
   validateSql,
 } from '../web/planner.mjs';
 import { interpretQuestion, DEFAULT_GEMINI_MODEL } from './gemini.mjs';
-import { interpretWithGrok, DEFAULT_GROK_MODEL } from './grok.mjs';
+import { interpretWithGroq, DEFAULT_GROQ_MODEL } from './groq.mjs';
 
 function payloadRows(payload) {
   const headers = Array.isArray(payload?.headers) ? payload.headers.map((header, index) => normalizeHeader(header, index)) : [];
@@ -24,7 +24,7 @@ function payloadRows(payload) {
   return rows;
 }
 
-export async function answerPluginQuestion({ question, payload, apiKey, grokApiKey, grokModel = DEFAULT_GROK_MODEL, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
+export async function answerPluginQuestion({ question, payload, apiKey, groqApiKey, groqModel = DEFAULT_GROQ_MODEL, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
   const text = String(question || '').trim();
   if (!text || text.length > 2000) throw new Error('Question must be between 1 and 2000 characters.');
   const rows = payloadRows(payload);
@@ -32,9 +32,9 @@ export async function answerPluginQuestion({ question, payload, apiKey, grokApiK
   let interpretation;
   let providerNotice = '';
   try {
-    // Try Grok first if available, fallback to Gemini
-    if (grokApiKey) {
-      interpretation = await interpretWithGrok({ question: text, schema, rows, timezone, now, apiKey: grokApiKey, model: grokModel, fetchImpl });
+    // Try Groq first if available, fallback to Gemini
+    if (groqApiKey) {
+      interpretation = await interpretWithGroq({ question: text, schema, rows, timezone, now, apiKey: groqApiKey, model: groqModel, fetchImpl });
     } else if (apiKey) {
       interpretation = await interpretQuestion({ question: text, schema, rows, timezone, now, apiKey, model, fetchImpl });
     } else {

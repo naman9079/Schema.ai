@@ -1,12 +1,12 @@
-// Grok AI adapter for xAI's Grok API
-const GROK_ENDPOINT = 'https://api.x.ai/v1/chat/completions';
+// Groq AI adapter for Groq's fast inference API
+const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
-export const DEFAULT_GROK_MODEL = 'grok-beta';
+export const DEFAULT_GROQ_MODEL = 'llama-3.1-70b-versatile';
 
-export async function interpretWithGrok({ question, schema, rows = [], timezone, now, apiKey, model = DEFAULT_GROK_MODEL, fetchImpl = fetch, timeoutMs = 30000 }) {
+export async function interpretWithGroq({ question, schema, rows = [], timezone, now, apiKey, model = DEFAULT_GROQ_MODEL, fetchImpl = fetch, timeoutMs = 30000 }) {
   if (!apiKey) {
-    const error = new Error('Grok is not configured. Set GROK_API_KEY on the server.');
-    error.code = 'GROK_NOT_CONFIGURED';
+    const error = new Error('Groq is not configured. Set GROQ_API_KEY on the server.');
+    error.code = 'GROQ_NOT_CONFIGURED';
     throw error;
   }
 
@@ -35,7 +35,7 @@ Current time: ${now}
 Return only the JSON query plan.`;
 
   try {
-    const response = await fetchImpl(GROK_ENDPOINT, {
+    const response = await fetchImpl(GROQ_ENDPOINT, {
       method: 'POST',
       signal: controller.signal,
       headers: {
@@ -56,23 +56,26 @@ Return only the JSON query plan.`;
     const body = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const error = new Error(body?.error?.message || `Grok request failed (${response.status}).`);
-      error.code = 'GROK_API_ERROR';
+      const errorMsg = body?.error?.message || body?.message || `Groq request failed (${response.status})`;
+      console.error('Groq API Error:', response.status, errorMsg, body);
+      const error = new Error(errorMsg);
+      error.code = 'GROQ_API_ERROR';
       error.status = response.status;
+      error.details = body;
       throw error;
     }
 
     const text = body?.choices?.[0]?.message?.content || '';
     if (!text) {
-      throw new Error('Grok returned no response content.');
+      throw new Error('Groq returned no response content.');
     }
 
     const plan = JSON.parse(text);
-    return { provider: 'grok', model, plan, usage: body.usage || null };
+    return { provider: 'groq', model, plan, usage: body.usage || null };
   } catch (error) {
     if (error.name === 'AbortError') {
-      const timeoutError = new Error('Grok timed out.');
-      timeoutError.code = 'GROK_TIMEOUT';
+      const timeoutError = new Error('Groq timed out.');
+      timeoutError.code = 'GROQ_TIMEOUT';
       throw timeoutError;
     }
     throw error;
@@ -81,10 +84,10 @@ Return only the JSON query plan.`;
   }
 }
 
-export async function cleanWithGrok({ datasetName, schema, rows, timezone, now, apiKey, model = DEFAULT_GROK_MODEL, fetchImpl = fetch, timeoutMs = 30000 }) {
+export async function cleanWithGroq({ datasetName, schema, rows, timezone, now, apiKey, model = DEFAULT_GROQ_MODEL, fetchImpl = fetch, timeoutMs = 30000 }) {
   if (!apiKey) {
-    const error = new Error('Grok is not configured. Set GROK_API_KEY on the server.');
-    error.code = 'GROK_NOT_CONFIGURED';
+    const error = new Error('Groq is not configured. Set GROQ_API_KEY on the server.');
+    error.code = 'GROQ_NOT_CONFIGURED';
     throw error;
   }
 
@@ -118,7 +121,7 @@ Timezone: ${timezone}
 Create a conservative cleaning plan. Return only the JSON object.`;
 
   try {
-    const response = await fetchImpl(GROK_ENDPOINT, {
+    const response = await fetchImpl(GROQ_ENDPOINT, {
       method: 'POST',
       signal: controller.signal,
       headers: {
@@ -139,23 +142,26 @@ Create a conservative cleaning plan. Return only the JSON object.`;
     const body = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      const error = new Error(body?.error?.message || `Grok cleaning request failed (${response.status}).`);
-      error.code = 'GROK_CLEANING_API_ERROR';
+      const errorMsg = body?.error?.message || body?.message || `Groq cleaning request failed (${response.status})`;
+      console.error('Groq API Error:', response.status, errorMsg, body);
+      const error = new Error(errorMsg);
+      error.code = 'GROQ_CLEANING_API_ERROR';
       error.status = response.status;
+      error.details = body;
       throw error;
     }
 
     const text = body?.choices?.[0]?.message?.content || '';
     if (!text) {
-      throw new Error('Grok returned no cleaning plan.');
+      throw new Error('Groq returned no cleaning plan.');
     }
 
     const plan = JSON.parse(text);
-    return { provider: 'grok', model, plan, usage: body.usage || null };
+    return { provider: 'groq', model, plan, usage: body.usage || null };
   } catch (error) {
     if (error.name === 'AbortError') {
-      const timeoutError = new Error('Grok timed out.');
-      timeoutError.code = 'GROK_CLEANING_TIMEOUT';
+      const timeoutError = new Error('Groq timed out.');
+      timeoutError.code = 'GROQ_CLEANING_TIMEOUT';
       throw timeoutError;
     }
     throw error;
