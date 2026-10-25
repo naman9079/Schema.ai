@@ -211,8 +211,8 @@ async function handleApi(req, res, url) {
       const result = await answerPluginQuestion({
         question: input.question,
         payload: input.payload,
-        apiKey: process.env.GEMINI_API_KEY,
-        model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL,
+        grokApiKey: process.env.GROK_API_KEY,
+        grokModel: process.env.GROK_MODEL || DEFAULT_GROK_MODEL,
         timezone: typeof input.timezone === 'string' ? input.timezone : 'UTC',
         now: new Date().toISOString(),
       });

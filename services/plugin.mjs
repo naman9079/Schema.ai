@@ -10,6 +10,7 @@ import {
   validateSql,
 } from '../web/planner.mjs';
 import { interpretQuestion, DEFAULT_GEMINI_MODEL } from './gemini.mjs';
+import { interpretWithGrok, DEFAULT_GROK_MODEL } from './grok.mjs';
 
 function payloadRows(payload) {
   const headers = Array.isArray(payload?.headers) ? payload.headers.map((header, index) => normalizeHeader(header, index)) : [];
@@ -23,7 +24,7 @@ function payloadRows(payload) {
   return rows;
 }
 
-export async function answerPluginQuestion({ question, payload, apiKey, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
+export async function answerPluginQuestion({ question, payload, apiKey, grokApiKey, model = DEFAULT_GEMINI_MODEL, timezone = 'UTC', now = new Date().toISOString(), fetchImpl = fetch }) {
   const text = String(question || '').trim();
   if (!text || text.length > 2000) throw new Error('Question must be between 1 and 2000 characters.');
   const rows = payloadRows(payload);
@@ -31,10 +32,17 @@ export async function answerPluginQuestion({ question, payload, apiKey, model = 
   let interpretation;
   let providerNotice = '';
   try {
-    interpretation = await interpretQuestion({ question: text, schema, rows, timezone, now, apiKey, model, fetchImpl });
+    // Try Grok first if available, fallback to Gemini
+    if (grokApiKey) {
+      interpretation = await interpretWithGrok({ question: text, schema, rows, timezone, now, apiKey: grokApiKey, model: process.env.GROK_MODEL || DEFAULT_GROK_MODEL, fetchImpl });
+    } else if (apiKey) {
+      interpretation = await interpretQuestion({ question: text, schema, rows, timezone, now, apiKey, model, fetchImpl });
+    } else {
+      throw new Error('No AI provider configured');
+    }
   } catch (error) {
     interpretation = { provider: 'deterministic-plugin-fallback', model: 'local-planner', plan: buildLocalAnswer(text, schema, rows), fallback: true };
-    providerNotice = `Gemini unavailable: ${error.message} Local plugin fallback used explicitly.`;
+    providerNotice = `AI unavailable: ${error.message} Local plugin fallback used explicitly.`;
   }
   const plan = interpretation.fallback ? interpretation.plan : (interpretation.plan?.status === 'unsupported' || interpretation.plan?.kind === 'unsupported'
     ? buildLocalAnswer(text, schema, rows)
