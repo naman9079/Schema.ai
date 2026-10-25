@@ -43,8 +43,8 @@ function writeFormulaToCell(formula, cellAddress) {
 }
 
 function detectFormulaRequest(question) {
-  // Check if question mentions writing to a specific cell like "in F12" or "to F12" or "at F12"
-  const cellMatch = question.match(/\b(?:in|to|at|into|write to|put in)\s+([A-Z]+\d+)\b/i);
+  // Check if question mentions writing to a specific cell like "in K2" or "to K2" or "at K2"
+  const cellMatch = question.match(/\b(?:in|to|at|into|write to|put in|place in|store in)\s+(?:cell\s+)?([A-Z]+\d+)\b/i);
   if (cellMatch) {
     return {
       hasFormula: true,
@@ -97,9 +97,11 @@ function askSchemaAiWithFormula(question, payload) {
   const formulaRequest = detectFormulaRequest(question);
   const cleanQuestion = formulaRequest.cleanQuestion || question;
   
-  Logger.log('Question: ' + question);
+  Logger.log('=== FORMULA REQUEST DEBUG ===');
+  Logger.log('Original question: ' + question);
   Logger.log('Clean question: ' + cleanQuestion);
-  Logger.log('Formula request: ' + JSON.stringify(formulaRequest));
+  Logger.log('Has formula request: ' + formulaRequest.hasFormula);
+  Logger.log('Target cell: ' + formulaRequest.targetCell);
   
   // Call the AI API
   try {
@@ -111,9 +113,12 @@ function askSchemaAiWithFormula(question, payload) {
     });
     
     Logger.log('Response code: ' + response.getResponseCode());
-    Logger.log('Response: ' + response.getContentText());
     
     const result = JSON.parse(response.getContentText() || '{}');
+    Logger.log('Result status: ' + result.status);
+    Logger.log('Result kind: ' + result.kind);
+    Logger.log('Result measure: ' + result.measure);
+    
     if (response.getResponseCode() >= 400) {
       throw new Error(result.error || 'Schema.ai request failed (' + response.getResponseCode() + ')');
     }
@@ -128,17 +133,23 @@ function askSchemaAiWithFormula(question, payload) {
     
     // If user specified a target cell and we have a formula, write it
     if (formulaRequest.hasFormula && formula && formulaRequest.targetCell) {
+      Logger.log('Attempting to write formula to ' + formulaRequest.targetCell);
       try {
         const sheet = SpreadsheetApp.getActiveSheet();
         const range = sheet.getRange(formulaRequest.targetCell);
         range.setFormula(formula);
         result.formulaWritten = true;
         result.targetCell = formulaRequest.targetCell;
-        Logger.log('Formula written to ' + formulaRequest.targetCell);
+        Logger.log('✓ Formula successfully written to ' + formulaRequest.targetCell);
       } catch (error) {
         result.formulaError = 'Could not write to ' + formulaRequest.targetCell + ': ' + error.message;
-        Logger.log('Formula write error: ' + error.message);
+        Logger.log('✗ Formula write error: ' + error.message);
       }
+    } else {
+      Logger.log('Formula not written because:');
+      Logger.log('  - Has formula request: ' + formulaRequest.hasFormula);
+      Logger.log('  - Has formula: ' + Boolean(formula));
+      Logger.log('  - Has target cell: ' + Boolean(formulaRequest.targetCell));
     }
     
     // Add the calculated value to the result
@@ -148,6 +159,7 @@ function askSchemaAiWithFormula(question, payload) {
       result.resultValue = result.rows[0].result;
     }
     
+    Logger.log('=== END DEBUG ===');
     return result;
   } catch (error) {
     Logger.log('Error: ' + error.message);
