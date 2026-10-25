@@ -1,10 +1,10 @@
 // Groq AI adapter for Groq's fast inference API
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
-// Using Qwen 3.8 27B - available on developer plan
-export const DEFAULT_GROQ_MODEL = 'qwen/qwen3.8-27b';
+// Using GPT-OSS 120B - available on free/developer plan, good balance of speed and quality
+export const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 
-export async function interpretWithGroq({ question, schema, rows = [], timezone, now, apiKey, model = DEFAULT_GROQ_MODEL, fetchImpl = fetch, timeoutMs = 30000 }) {
+export async function interpretWithGroq({ question, schema, rows = [], timezone, now, apiKey, model = DEFAULT_GROQ_MODEL, fetchImpl = fetch, timeoutMs = 60000 }) {
   if (!apiKey) {
     const error = new Error('Groq is not configured. Set GROQ_API_KEY on the server.');
     error.code = 'GROQ_NOT_CONFIGURED';
