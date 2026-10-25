@@ -116,31 +116,50 @@ export async function cleanWithGroq({ datasetName, schema, rows, timezone, now, 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  const systemPrompt = `You are a data cleaning assistant. Analyze the dataset and create a safe cleaning plan.
+  const systemPrompt = `You are an expert data cleaning assistant. Analyze the dataset thoroughly and create a comprehensive cleaning plan.
+
+CRITICAL INSTRUCTIONS:
+1. Examine the sample rows carefully for data quality issues
+2. Look for: trailing/leading spaces, inconsistent null values, type mismatches, blank rows, duplicates
+3. Be thorough but conservative - only suggest operations that improve data quality
+4. ALWAYS include specific column names for each operation
+5. Provide clear reasons for each operation
+
+Common issues to detect:
+- Text with extra spaces (use trim_text)
+- Empty strings that should be null (use empty_to_null)
+- Inconsistent null representations like "NA", "N/A", "null", "-", "?" (use normalize_null_tokens)
+- Values in wrong types, like "123" in text column that should be number (use coerce_values)
+- Completely empty rows (use drop_blank_rows)
+- Exact duplicate rows (use drop_exact_duplicates)
+
 Return ONLY valid JSON matching this schema:
 {
-  "status": "ready" | "needs_clarification" | "unsupported",
-  "summary": "description of cleaning plan",
+  "status": "ready",
+  "summary": "clear description of what will be cleaned and why",
   "operations": [
     {
       "type": "trim_text" | "empty_to_null" | "normalize_null_tokens" | "coerce_values" | "drop_blank_rows" | "drop_exact_duplicates",
-      "columns": ["column names"],
-      "reason": "why this operation"
+      "columns": ["specific_column_name1", "specific_column_name2"],
+      "reason": "specific explanation of the issue found"
     }
   ],
-  "nullTokens": ["NA", "N/A", "null"],
-  "warnings": ["warning messages"],
-  "assumptions": ["assumptions made"]
+  "nullTokens": ["NA", "N/A", "null", "-", "?", "n/a", "N.A.", "na"],
+  "warnings": ["potential risks or notable changes"],
+  "assumptions": ["assumptions about data format or business rules"]
 }
 
-Only use safe operations. Never invent values or delete data unnecessarily.`;
+IMPORTANT: 
+- List ALL relevant columns for each operation type
+- Be specific about what issues you found in the sample data
+- Include at least 3-5 operations if data quality issues exist`;
 
   const userPrompt = `Dataset: ${datasetName}
 Schema: ${JSON.stringify(schema.slice(0, 50))}
-Sample rows: ${JSON.stringify(rows.slice(0, 10))}
+Sample rows (first 10): ${JSON.stringify(rows.slice(0, 10))}
 Timezone: ${timezone}
 
-Create a conservative cleaning plan. Return only the JSON object.`;
+Analyze these rows thoroughly. Identify all data quality issues and create a comprehensive cleaning plan. Return only the JSON object with status="ready".`;
 
   try {
     const response = await fetchImpl(GROQ_ENDPOINT, {
